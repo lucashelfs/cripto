@@ -17,6 +17,7 @@ int Alg_K128();
 int identificar_modo();
 int identifica_entrada();
 int identifica_saida();
+string concatenada(string chave_k, string entrada);
 
 // Main
 int main(int argc, char ** argv){
@@ -44,6 +45,12 @@ int main(int argc, char ** argv){
     senha = argv[5];
     printf("\nSenha=%s --> Bytes=%d", senha, (int)strlen(senha));
   }
+
+  // Chave K
+  string chave_k;
+  chave_k = concatenada(chave_k, senha);
+  printf("\nSenha concatenada = %s \n", chave_k);
+  free(chave_k);
 
   // ARQUIVOS
   // FILE *arq_entra,
@@ -118,4 +125,17 @@ int identifica_entrada(char ** argv){
 int identifica_saida(char ** argv){
   printf("Jogue em: %s! \n", argv[5]);
   return 0;
+}
+// Retorna a string concatenada
+string concatenada(string chave_k, string entrada){
+  int i;
+  string dest;
+  dest = malloc(sizeof(char)*(240+1));
+  chave_k = malloc(sizeof(char)*(16+1));
+  strcpy(dest, entrada);
+  for (i=0; i<16; i++) strcat(dest, entrada);
+  memcpy(chave_k,dest,16);
+  chave_k[16] = 0;
+  free(dest);
+  return chave_k;
 }
