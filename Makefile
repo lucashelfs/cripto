@@ -6,4 +6,4 @@ ep: ep.c
 	$(CC) -o epzao ep.c
 
 clean:
-	rm -f ep ep.o
+	rm -f epzao ep.o

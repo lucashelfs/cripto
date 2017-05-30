@@ -21,39 +21,44 @@ int identifica_saida();
 // Main
 int main(int argc, char ** argv){
 
-  // LER A ENTRADA
-  int i=0;
-  int modo=0;
-  int entrada, saida;
-
   // Para debug
   // printf("\ncmdline args count=%d", argc);
   // printf("\nexe name=%s \n", argv[0]);
   // for (i=0; i<argc; i++) printf("%d = %s \n", i, argv[i]);
+
+  // LER A ENTRADA
+  int i=0;
+  int modo;
+  int entrada, saida;
+  string senha;
 
   modo = identificar_modo(argv);
   entrada = identifica_entrada(argv);
 
   if(modo == 1 || modo == 2){
     saida = identifica_saida(argv);
+    senha = argv[7];
+    printf("\nSenha=%s --> Bytes=%d", senha, (int)strlen(senha));
+  }
+  else {
+    senha = argv[5];
+    printf("\nSenha=%s --> Bytes=%d", senha, (int)strlen(senha));
   }
 
   // ARQUIVOS
   // FILE *arq_entra,
   // FILE *arq_sai;
-  // arq_entra = fopen("ARQUIVO_ENTRADA", "r+");
-  // arq_sai = fopen("ARQUIVO_SAIDA", "w+");
+  // arq_entra = fopen(entrada, "r+");
+  // arq_sai = fopen(saida, "w+");
 
   // Senha e chave principal K
   // A senha a ser digitada: a senha A no parametro -p <senha> deve conter pelo menos 8 caracteres, sendo A com pelo menos 2
   // letras e 2 algarismos decimais;
   // Geração da chave K de 128 bits a partir da senha: se a senha A digitada possuir menos que 16 caracteres (i.e., 16 bytes), a
-  // chave K de 128 bits deve ser derivada de A concatenando-se A com ela própria até comar 16 bytes (128 bits).
+  // chave K de 128 bits deve ser derivada de A concatenando-se A com ela própria até somar 16 bytes (128 bits).
 
   return 0;
 }
-
-
 // ___  ________ _   _  _   _   ___   _____
 // |  \/  |_   _| \ | || | | | / _ \ /  ___|
 // | .  . | | | |  \| || |_| |/ /_\ \\ `--.
@@ -69,18 +74,14 @@ int main(int argc, char ** argv){
 // | |   | |_| | |\  | \__/\ \_/ / |___/\__/ /
 // \_|    \___/\_| \_/\____/\___/\____/\____/
 //
-
-
 // Geração de subchaves
 int subchaves(){
   return 0;
 }
-
 // Algoritmo K128
 int Alg_K128(){
   return 0;
 }
-
 // Obtem o modo a partir da entrada
 int identificar_modo(char ** argv){
   // Modo (1) Para criptografar arquivos:
@@ -91,32 +92,30 @@ int identificar_modo(char ** argv){
   }
   //  Modo (2) Para decriptografar arquivos:
   // programa -d -i <arquivo de entrada> -o <arquivo de saída> -p <senha>
-  if (strcmp(argv[1],"-d") == 0){
+  else if (strcmp(argv[1],"-d") == 0){
         printf("Decriptografar! \n");
         return 2;
   }
   //  Modo (3) Para calcular aleatoriedade pelo método 1 (item 1 abaixo):
   // programa -1 -i <arquivo de entrada> -p <senha>
-  if (strcmp(argv[1],"-1") == 0){
+  else if (strcmp(argv[1],"-1") == 0){
         printf("Aleatoriedade 1! \n");
         return 3;
   }
   //  Modo (4) Para calcular aleatoriedade pelo método 2 (item 2 abaixo):
   // programa -2 -i <arquivo de entrada> -p <senha>
-  if (strcmp(argv[1],"-2") == 0){
+  else if (strcmp(argv[1],"-2") == 0){
         printf("Aleatoriedade 2! \n");
         return 4;
   }
 }
-
 // Pega o nome do arquivo de entrada
 int identifica_entrada(char ** argv){
-  printf("Pegue o arquivo: %s! \n", argv[2]);
+  printf("Pegue o arquivo: %s! \n", argv[3]);
   return 0;
 }
-
 // Pega o nome do arquivo de saída
 int identifica_saida(char ** argv){
-  printf("Jogue em: %s! \n", argv[4]);
+  printf("Jogue em: %s! \n", argv[5]);
   return 0;
 }
