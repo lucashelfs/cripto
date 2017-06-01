@@ -46,11 +46,11 @@ int main(int argc, char ** argv){
     printf("\nSenha=%s --> Bytes=%d", senha, (int)strlen(senha));
   }
 
-  // Chave K
+  // Chave K concatenada
   string chave_k;
   chave_k = concatenada(chave_k, senha);
   printf("\nSenha concatenada = %s \n", chave_k);
-  free(chave_k);
+
 
   // ARQUIVOS
   // FILE *arq_entra,
@@ -64,6 +64,8 @@ int main(int argc, char ** argv){
   // Geração da chave K de 128 bits a partir da senha: se a senha A digitada possuir menos que 16 caracteres (i.e., 16 bytes), a
   // chave K de 128 bits deve ser derivada de A concatenando-se A com ela própria até somar 16 bytes (128 bits).
 
+  // Liberar memória e sair
+  free(chave_k);
   return 0;
 }
 // ___  ________ _   _  _   _   ___   _____
@@ -126,7 +128,7 @@ int identifica_saida(char ** argv){
   printf("Jogue em: %s! \n", argv[5]);
   return 0;
 }
-// Retorna a string concatenada
+// Retorna a chave_k concatenada
 string concatenada(string chave_k, string entrada){
   int i;
   string dest;
