@@ -7,6 +7,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
+#include <inttypes.h>
 
 // Definição de tipos
 typedef char * string;
@@ -50,7 +51,8 @@ int main(int argc, char ** argv){
   string chave_k;
   chave_k = concatenada(chave_k, senha);
   printf("\nSenha concatenada = %s \n", chave_k);
-
+  int x;
+  x = subchaves(chave_k);
 
   // ARQUIVOS
   // FILE *arq_entra,
@@ -84,7 +86,27 @@ int main(int argc, char ** argv){
 // \_|    \___/\_| \_/\____/\___/\____/\____/
 //
 // Geração de subchaves
-int subchaves(){
+int subchaves(string chave_k){
+
+  // Separar a string em duas partes, é necessário?
+  string esq;
+  string dir;
+  esq = malloc(sizeof(char)*(8+1));
+  dir = malloc(sizeof(char)*(8+1));
+  memcpy(esq,chave_k,8);
+  memcpy(dir,chave_k+8,8);
+  esq[8] = 0;
+  dir[8] = 0;
+  // printf("Esquerda: %s \n", esq);
+  // printf("Direita: %s \n", dir);
+
+
+  int64_t t;
+  int64_t k0 = 0xb7e151628aed2a6b;    // Rumo ao hexa
+  int64_t kj = k0 << 3;               // This how we shift
+  // printf("k0 = 0x%" PRIx64 "\n", k0);
+  // printf("kj = 0x%" PRIx64 "\n", kj);
+
   return 0;
 }
 // Algoritmo K128
