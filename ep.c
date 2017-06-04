@@ -10,28 +10,26 @@
 #include <inttypes.h>
 #include <math.h>
 
-// Debug etc
-int debug = 1;
+// Se quiser imprimir as variáveis para debug
+int debug = 0;
 
 // Definição de tipos
 typedef char * string;
 
 // Protótipos das funções
-int subchaves();
 int Alg_K128();
 int identificar_modo();
 int identifica_entrada();
 int identifica_saida();
 string concatenada(string chave_k, string entrada);
 uint64_t chavePara64(string key);
+uint64_t * subchaves();
 
 // Main
 int main(int argc, char ** argv){
 
   // LER A ENTRADA
-  int i=0;
-  int modo;
-  int entrada, saida;
+  int i=0, entrada, saida, modo;
   string senha;
 
   modo = identificar_modo(argv);
@@ -47,48 +45,55 @@ int main(int argc, char ** argv){
     if (debug) printf("\nSenha=%s --> Bytes=%d", senha, (int)strlen(senha));
   }
 
-  // Chave K concatenada
-  string chave_k;
-  chave_k = concatenada(chave_k, senha);
-  if (debug) printf("\nSenha concatenada = %s \n", chave_k);
-  int x;
-  x = subchaves(chave_k);
-
   // ARQUIVOS
   // FILE *arq_entra,
   // FILE *arq_sai;
   // arq_entra = fopen(entrada, "r+");
   // arq_sai = fopen(saida, "w+");
 
-  // Senha e chave principal K
-  // A senha a ser digitada: a senha A no parametro -p <senha> deve conter pelo menos 8 caracteres, sendo A com pelo menos 2
-  // letras e 2 algarismos decimais;
-  // Geração da chave K de 128 bits a partir da senha: se a senha A digitada possuir menos que 16 caracteres (i.e., 16 bytes), a
-  // chave K de 128 bits deve ser derivada de A concatenando-se A com ela própria até somar 16 bytes (128 bits).
+  // Chave K concatenada
+  string chave_k;
+  chave_k = concatenada(chave_k, senha);
+  if (debug) printf("\nSenha concatenada = %s \n", chave_k);
+
+  // Subchaves
+  uint64_t * sub_k;
+  sub_k = subchaves(chave_k);
 
   // Liberar memória e sair
   free(chave_k);
+  free(sub_k);
   return 0;
 }
-
+// Converte uma string para uint64
 uint64_t chavePara64(string key) {
   int i;
   uint64_t num = 0;
   num = (uint8_t)key[0];
-  for (i=1;i<7;i++){
+  for (i=1;i<8;i++){
     num = num << 8;
     num |= (uint8_t)key[i];
   }
   return num;
 }
-
-// Geração de subchaves
-int subchaves(string chave_k){
-
+// Converter um uint64 para string
+string numParaChave(uint64_t num){
   int i;
-  int j;
+  string chave = malloc(sizeof(char)*(8+1));
+
+  for(i=7; i>-1; i--){
+    chave[i] = num & 0x00FF;
+    num = num >> 8;
+  }
+
+  chave[8] = 0;
+  return chave;
+}
+// Geração de subchaves
+uint64_t * subchaves(string chave_k){
+
+  int i, j, s;
   int r = 12;
-  int s;
   int tam = 2 * r + 1;
 
   // Output para arquivo
@@ -101,8 +106,8 @@ int subchaves(string chave_k){
   fputs ("\n------------ \n",arquivo);
 
   // Separar a string em duas partes: apenas pra debug
-  string esq;
-  string dir;
+  string esq, dir, reversed;
+
   if (debug) {
     esq = malloc(sizeof(char)*(8+1));
     dir = malloc(sizeof(char)*(8+1));
@@ -129,6 +134,10 @@ int subchaves(string chave_k){
   if (debug) {
     printf("Esquerda: %s\n", esq);
     printf("Direita: %s\n", dir);
+    reversed = numParaChave(esq_val);
+    printf("Esquerda reversa : %s\n", reversed);
+    reversed = numParaChave(dir_val);
+    printf("Direita reversa : %s\n", reversed);
     printf("Valor esq (hex): %" PRIx64 "\n", esq_val);
     printf("Valor dir (hex): %" PRIx64 "\n", dir_val);
     free(esq);
@@ -165,9 +174,8 @@ int subchaves(string chave_k){
 
   // OBS: Como tem que retornar k1, k2, ... k2r+1 volta isso num vetor
   //      e faz com que onde isso for usado apenas acesse o endereço corretament
-  free(k);
   free(L);
-  return 0;
+  return k;
 }
 // Algoritmo K128
 int Alg_K128(){
@@ -216,7 +224,7 @@ string concatenada(string chave_k, string entrada){
   string dest;
   dest = malloc(sizeof(char)*(240+1));
   chave_k = malloc(sizeof(char)*(16+1));
-  strcpy(dest, entrada);
+  strcpy(dest,entrada);
   for (i=0; i<16; i++) strcat(dest, entrada);
   memcpy(chave_k,dest,16);
   chave_k[16] = 0;
