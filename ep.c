@@ -23,6 +23,8 @@ int identifica_entrada();
 int identifica_saida();
 string concatenada(string chave_k, string entrada);
 uint64_t chavePara64(string key);
+uint64_t shiftEsq(uint64_t n, unsigned int d);
+uint64_t shiftDir(uint64_t n, unsigned int d);
 uint64_t * subchaves();
 
 // Main
@@ -65,6 +67,7 @@ int main(int argc, char ** argv){
   free(sub_k);
   return 0;
 }
+
 // Converte uma string para uint64
 uint64_t chavePara64(string key) {
   int i;
@@ -76,19 +79,31 @@ uint64_t chavePara64(string key) {
   }
   return num;
 }
+
 // Converter um uint64 para string
 string numParaChave(uint64_t num){
   int i;
   string chave = malloc(sizeof(char)*(8+1));
-
   for(i=7; i>-1; i--){
     chave[i] = num & 0x00FF;
     num = num >> 8;
   }
-
   chave[8] = 0;
   return chave;
 }
+
+uint64_t shiftEsq(uint64_t n, unsigned int d){
+   /* In n<<d, ultimos d viram zero. To put first 3 bits of n at
+     last, do bitwise or of n<<d with n >>(INT_BITS - d) */
+   return (n << d)|(n >> (64 - d));
+}
+
+uint64_t shiftDir(uint64_t n, unsigned int d){
+   /* In n>>d, first d bits are 0. To put last 3 bits of at
+     first, do bitwise or of n>>d with n <<(INT_BITS - d) */
+   return (n >> d)|(n << (64 - d));
+}
+
 // Geração de subchaves
 uint64_t * subchaves(string chave_k){
 
@@ -160,10 +175,12 @@ uint64_t * subchaves(string chave_k){
   B = 0x0000000000000000;
 
   for (s=1;s<(tam+1);s++){
-    k[i] = (k[i] + A + B) << 3;
+    k[i] = (k[i] + A + B);
+    k[i] = shiftEsq(k[i], 3);
     A = k[i];
     i = i+1;
-    L[j] = (L[j] + A + B) << (A + B);
+    L[j] = (L[j] + A + B);
+    L[j] = shiftEsq(L[j], A + B);
     B = L[j];
     j = j+1;
   }
@@ -171,16 +188,15 @@ uint64_t * subchaves(string chave_k){
   // Subkeys no arquivo
   for (i=0;i<tam+1;i++) fprintf(arquivo,"k[%02d] = %" PRIx64 "\n", i, k[i]);
   fclose(arquivo);
-
-  // OBS: Como tem que retornar k1, k2, ... k2r+1 volta isso num vetor
-  //      e faz com que onde isso for usado apenas acesse o endereço corretament
   free(L);
   return k;
 }
+
 // Algoritmo K128
 int Alg_K128(){
   return 0;
 }
+
 // Obtem o modo a partir da entrada
 int identificar_modo(char ** argv){
   // Modo (1) Para criptografar arquivos:
@@ -208,16 +224,19 @@ int identificar_modo(char ** argv){
         return 4;
   }
 }
+
 // Pega o nome do arquivo de entrada
 int identifica_entrada(char ** argv){
   if (debug) printf("Pegue o arquivo: %s! \n", argv[3]);
   return 0;
 }
+
 // Pega o nome do arquivo de saída
 int identifica_saida(char ** argv){
   if (debug) printf("Jogue em: %s! \n", argv[5]);
   return 0;
 }
+
 // Retorna a chave_k concatenada
 string concatenada(string chave_k, string entrada){
   int i;
