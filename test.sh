@@ -4,11 +4,11 @@ make clean
 make
 
 echo "Primeiro."
-./epzao -c -i entrada -o saida -p senhaP -a
-echo ""
-echo ""
-echo "Segundo."
-./epzao -d -i entrada -o saida -p senhaS
+./epzao -c -i entrada -o saida -p teste1234 -a # Consertar o erro que dá quando a senha é grande!
+# echo ""
+# echo ""
+# echo "Segundo."
+# ./epzao -d -i entrada -o saida -p senhaS
 # echo ""
 # echo ""
 # echo "Terceiro."

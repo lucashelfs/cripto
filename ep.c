@@ -8,6 +8,10 @@
 #include <string.h>
 #include <ctype.h>
 #include <inttypes.h>
+#include <math.h>
+
+// Debug etc
+int debug = 1;
 
 // Definição de tipos
 typedef char * string;
@@ -19,14 +23,10 @@ int identificar_modo();
 int identifica_entrada();
 int identifica_saida();
 string concatenada(string chave_k, string entrada);
+uint64_t chavePara64(string key);
 
 // Main
 int main(int argc, char ** argv){
-
-  // Para debug
-  // printf("\ncmdline args count=%d", argc);
-  // printf("\nexe name=%s \n", argv[0]);
-  // for (i=0; i<argc; i++) printf("%d = %s \n", i, argv[i]);
 
   // LER A ENTRADA
   int i=0;
@@ -40,17 +40,17 @@ int main(int argc, char ** argv){
   if(modo == 1 || modo == 2){
     saida = identifica_saida(argv);
     senha = argv[7];
-    printf("\nSenha=%s --> Bytes=%d", senha, (int)strlen(senha));
+    if (debug) printf("\nSenha=%s --> Bytes=%d", senha, (int)strlen(senha));
   }
   else {
     senha = argv[5];
-    printf("\nSenha=%s --> Bytes=%d", senha, (int)strlen(senha));
+    if (debug) printf("\nSenha=%s --> Bytes=%d", senha, (int)strlen(senha));
   }
 
   // Chave K concatenada
   string chave_k;
   chave_k = concatenada(chave_k, senha);
-  printf("\nSenha concatenada = %s \n", chave_k);
+  if (debug) printf("\nSenha concatenada = %s \n", chave_k);
   int x;
   x = subchaves(chave_k);
 
@@ -70,43 +70,103 @@ int main(int argc, char ** argv){
   free(chave_k);
   return 0;
 }
-// ___  ________ _   _  _   _   ___   _____
-// |  \/  |_   _| \ | || | | | / _ \ /  ___|
-// | .  . | | | |  \| || |_| |/ /_\ \\ `--.
-// | |\/| | | | | . ` ||  _  ||  _  | `--. \
-// | |  | |_| |_| |\  || | | || | | |/\__/ /
-// \_|  |_/\___/\_| \_/\_| |_/\_| |_/\____/
-//
-//
-// ______ _   _ _   _ _____ _____ _____ _____
-// |  ___| | | | \ | /  __ \  _  |  ___/  ___|
-// | |_  | | | |  \| | /  \/ | | | |__ \ `--.
-// |  _| | | | | . ` | |   | | | |  __| `--. \
-// | |   | |_| | |\  | \__/\ \_/ / |___/\__/ /
-// \_|    \___/\_| \_/\____/\___/\____/\____/
-//
+
+uint64_t chavePara64(string key) {
+  int i;
+  uint64_t num = 0;
+  num = (uint8_t)key[0];
+  for (i=1;i<7;i++){
+    num = num << 8;
+    num |= (uint8_t)key[i];
+  }
+  return num;
+}
+
 // Geração de subchaves
 int subchaves(string chave_k){
 
-  // Separar a string em duas partes, é necessário?
+  int i;
+  int j;
+  int r = 12;
+  int s;
+  int tam = 2 * r + 1;
+
+  // Output para arquivo
+  FILE * arquivo;
+  arquivo = fopen("output_subchaves", "w+");
+  fputs ("key_main ",arquivo);
+  for (i=0;i<16;i++) fprintf(arquivo," %c  ",chave_k[i]);
+  fputs ("\nkey_hexa ",arquivo);
+  for (i=0;i<16;i++) fprintf(arquivo,"%x  ",chave_k[i]);
+  fputs ("\n------------ \n",arquivo);
+
+  // Separar a string em duas partes: apenas pra debug
   string esq;
   string dir;
-  esq = malloc(sizeof(char)*(8+1));
-  dir = malloc(sizeof(char)*(8+1));
-  memcpy(esq,chave_k,8);
-  memcpy(dir,chave_k+8,8);
-  esq[8] = 0;
-  dir[8] = 0;
-  // printf("Esquerda: %s \n", esq);
-  // printf("Direita: %s \n", dir);
+  if (debug) {
+    esq = malloc(sizeof(char)*(8+1));
+    dir = malloc(sizeof(char)*(8+1));
+    memcpy(esq,chave_k,8);
+    memcpy(dir,chave_k+8,8);
+    esq[8] = 0;
+    dir[8] = 0;
+  }
 
+  uint64_t esq_val = 0;
+  uint64_t dir_val = 0;
+  uint64_t temp = 0;
+  uint64_t A;
+  uint64_t B;
+  uint64_t * L;
+  uint64_t * k;
+  L = malloc(sizeof(uint64_t)*(tam+1));
+  k = malloc(sizeof(uint64_t)*(tam+1));
 
-  int64_t t;
-  int64_t k0 = 0xb7e151628aed2a6b;    // Rumo ao hexa
-  int64_t kj = k0 << 3;               // This how we shift
-  // printf("k0 = 0x%" PRIx64 "\n", k0);
-  // printf("kj = 0x%" PRIx64 "\n", kj);
+  // chave_k vira um uint64
+  esq_val = chavePara64(chave_k);
+  dir_val = chavePara64(chave_k+8);
 
+  if (debug) {
+    printf("Esquerda: %s\n", esq);
+    printf("Direita: %s\n", dir);
+    printf("Valor esq (hex): %" PRIx64 "\n", esq_val);
+    printf("Valor dir (hex): %" PRIx64 "\n", dir_val);
+    free(esq);
+    free(dir);
+  }
+
+  L[0] = esq_val;
+  L[1] = dir_val;
+
+  for (j=2;j<(tam+1); j++)
+    L[j] = L[j-1] + 0x9e3779b97f4a7c15;
+
+  k[0] = 0xb7e151628aed2a6b;
+
+  for (j=1;j<(tam+1); j++)
+    k[j] = k[j-1] + 0x7f4a7c159e3779b9;
+
+  i=0; j=0;
+  A = 0x0000000000000000;
+  B = 0x0000000000000000;
+
+  for (s=1;s<(tam+1);s++){
+    k[i] = (k[i] + A + B) << 3;
+    A = k[i];
+    i = i+1;
+    L[j] = (L[j] + A + B) << (A + B);
+    B = L[j];
+    j = j+1;
+  }
+
+  // Subkeys no arquivo
+  for (i=0;i<tam+1;i++) fprintf(arquivo,"k[%02d] = %" PRIx64 "\n", i, k[i]);
+  fclose(arquivo);
+
+  // OBS: Como tem que retornar k1, k2, ... k2r+1 volta isso num vetor
+  //      e faz com que onde isso for usado apenas acesse o endereço corretament
+  free(k);
+  free(L);
   return 0;
 }
 // Algoritmo K128
@@ -142,12 +202,12 @@ int identificar_modo(char ** argv){
 }
 // Pega o nome do arquivo de entrada
 int identifica_entrada(char ** argv){
-  printf("Pegue o arquivo: %s! \n", argv[3]);
+  if (debug) printf("Pegue o arquivo: %s! \n", argv[3]);
   return 0;
 }
 // Pega o nome do arquivo de saída
 int identifica_saida(char ** argv){
-  printf("Jogue em: %s! \n", argv[5]);
+  if (debug) printf("Jogue em: %s! \n", argv[5]);
   return 0;
 }
 // Retorna a chave_k concatenada
