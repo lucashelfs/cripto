@@ -68,6 +68,8 @@ int main(int argc, char ** argv){
   read_file_to_array(entrada, file_bytes, file_size);
   printf("\nInput size = %ld \n", file_size);
 
+  int test_alg = Alg_K128(sub_k, file_bytes);
+
   free(entrada);
   free(saida);
   free(chave_k);
@@ -77,7 +79,6 @@ int main(int argc, char ** argv){
   return 0;
 }
 
-<<<<<<< HEAD
 void read_file_to_array(char file_name[], byte_t file_bytes[], long file_size) {
     FILE *p_input_file;
 
@@ -103,7 +104,6 @@ uint64_t chavePara64(string key) {
   return num;
 }
 
-
 /* Converter um uint64 para string */
 string numParaChave(uint64_t num){
   int i;
@@ -113,6 +113,17 @@ string numParaChave(uint64_t num){
     num = num >> 8;
   }
   chave[8] = 0;
+  return chave;
+}
+
+/* Converter um uint64 para vetor de uint8_t */
+uint8_t * numParaVet(uint64_t num){
+  int i;
+  string chave = malloc(sizeof(uint8_t)*(8));
+  for(i=7; i>-1; i--){
+    chave[i] = num & 0x00FF;
+    num = num >> 8;
+  }
   return chave;
 }
 
@@ -210,35 +221,23 @@ uint64_t * subchaves(string chave_k){
   /* Subkeys no arquivo */
   for (i=0;i<tam+1;i++) fprintf(arquivo,"k[%02d] = %" PRIx64 "\n", i, k[i]);
   fclose(arquivo);
-<<<<<<< HEAD
-
-=======
->>>>>>> subchaves
   free(L);
   return k;
 }
 
-
 int Alg_K128(uint64_t keys[], byte_t file_bytes[]){
-  int r, R = 12;
+  int i, r, R = 12;
   uint64_t key;
+  uint8_t * b;
 
+  /* Separar os bytes da chave */
   for (r=1;r<R+1;r++){
     key = keys[(2*r) - 1];
-    uint8_t b1 = (key >> 56) & 0xff;
-    uint8_t b2 = (key >> 48) & 0xff;
-    uint8_t b3 = (key >> 40) & 0xff;
-    uint8_t b4 = (key >> 32) & 0xff;
-    uint8_t b5 = (key >> 24) & 0xff;
-    uint8_t b6 = (key >> 16) & 0xff;
-    uint8_t b7 = (key >>  8) & 0xff;
-    uint8_t b8 = key         & 0xff;
+    b = numParaVet(key);
+    printf("\n");
+    for (i=0;i<8;i++) printf("%" PRIx8, b[i]);
+    free(b);
   }
-
-  return 0;
-}
-
-int Alg_K128(){
   return 0;
 }
 
@@ -278,8 +277,6 @@ long get_file_size(string file_name) {
     fclose(p_input_file);
 
     return file_size;
-}
-
 }
 
 int identifica_entrada(char ** argv){
