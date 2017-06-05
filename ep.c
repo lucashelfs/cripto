@@ -22,6 +22,8 @@ int Alg_K128(uint64_t keys[], byte_t file_bytes[]);
 int identificar_modo();
 string concatenada(string chave_k, string entrada);
 uint64_t chavePara64(string key);
+uint64_t shiftEsq(uint64_t n, unsigned int d);
+uint64_t shiftDir(uint64_t n, unsigned int d);
 uint64_t * subchaves();
 
 long get_file_size(char file_name[]);
@@ -75,6 +77,7 @@ int main(int argc, char ** argv){
   return 0;
 }
 
+<<<<<<< HEAD
 void read_file_to_array(char file_name[], byte_t file_bytes[], long file_size) {
     FILE *p_input_file;
 
@@ -100,21 +103,31 @@ uint64_t chavePara64(string key) {
   return num;
 }
 
+
 /* Converter um uint64 para string */
 string numParaChave(uint64_t num){
   int i;
   string chave = malloc(sizeof(char)*(8+1));
-
   for(i=7; i>-1; i--){
     chave[i] = num & 0x00FF;
     num = num >> 8;
   }
-
   chave[8] = 0;
   return chave;
 }
 
-/* Geração de subchaves*/
+uint64_t shiftEsq(uint64_t n, unsigned int d){
+   /* In n<<d, ultimos d viram zero. To put first 3 bits of n at
+     last, do bitwise or of n<<d with n >>(INT_BITS - d) */
+   return (n << d)|(n >> (64 - d));
+}
+
+uint64_t shiftDir(uint64_t n, unsigned int d){
+   /* In n>>d, first d bits are 0. To put last 3 bits of at
+     first, do bitwise or of n>>d with n <<(INT_BITS - d) */
+   return (n >> d)|(n << (64 - d));
+}
+
 uint64_t * subchaves(string chave_k){
 
   int i, j, s;
@@ -184,10 +197,12 @@ uint64_t * subchaves(string chave_k){
   B = 0x0000000000000000;
 
   for (s=1;s<(tam+1);s++){
-    k[i] = (k[i] + A + B) << 3;
+    k[i] = (k[i] + A + B);
+    k[i] = shiftEsq(k[i], 3);
     A = k[i];
     i = i+1;
-    L[j] = (L[j] + A + B) << (A + B);
+    L[j] = (L[j] + A + B);
+    L[j] = shiftEsq(L[j], A + B);
     B = L[j];
     j = j+1;
   }
@@ -195,10 +210,14 @@ uint64_t * subchaves(string chave_k){
   /* Subkeys no arquivo */
   for (i=0;i<tam+1;i++) fprintf(arquivo,"k[%02d] = %" PRIx64 "\n", i, k[i]);
   fclose(arquivo);
+<<<<<<< HEAD
 
+=======
+>>>>>>> subchaves
   free(L);
   return k;
 }
+
 
 int Alg_K128(uint64_t keys[], byte_t file_bytes[]){
   int r, R = 12;
@@ -216,6 +235,10 @@ int Alg_K128(uint64_t keys[], byte_t file_bytes[]){
     uint8_t b8 = key         & 0xff;
   }
 
+  return 0;
+}
+
+int Alg_K128(){
   return 0;
 }
 
@@ -257,7 +280,18 @@ long get_file_size(string file_name) {
     return file_size;
 }
 
-/* string concatenada*/
+}
+
+int identifica_entrada(char ** argv){
+  if (debug) printf("Pegue o arquivo: %s! \n", argv[3]);
+  return 0;
+}
+
+int identifica_saida(char ** argv){
+  if (debug) printf("Jogue em: %s! \n", argv[5]);
+  return 0;
+}
+
 string concatenada(string chave_k, string entrada){
   int i;
   string dest;
