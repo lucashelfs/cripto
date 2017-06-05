@@ -10,33 +10,40 @@
 #include <inttypes.h>
 #include <math.h>
 
-// Se quiser imprimir as variáveis para debug
-int debug = 0;
+/* Se quiser imprimir as variáveis para debug */
+int debug = 1;
 
-// Definição de tipos
+/* Definição de tipos */
+typedef unsigned char byte_t;
 typedef char * string;
 
-// Protótipos das funções
-int Alg_K128();
+/* Protótipos das funções */
+int Alg_K128(uint64_t keys[], byte_t file_bytes[]);
 int identificar_modo();
-int identifica_entrada();
-int identifica_saida();
 string concatenada(string chave_k, string entrada);
 uint64_t chavePara64(string key);
 uint64_t * subchaves();
 
-// Main
+long get_file_size(char file_name[]);
+void read_file_to_array(char file_name[], byte_t file_bytes[], long file_size);
+
 int main(int argc, char ** argv){
 
-  // LER A ENTRADA
-  int i=0, entrada, saida, modo;
-  string senha;
+  /* Dívida técnica: consertar intro  */
+  int modo=0;
+  long file_size;
+  string senha, entrada, saida;
+
+  FILE * arq_sai;
+  arq_sai = fopen(saida, "a+");
 
   modo = identificar_modo(argv);
-  entrada = identifica_entrada(argv);
+  entrada = malloc(sizeof(char)*(strlen(argv[3]) + 1));
+  saida = malloc(sizeof(char)*(strlen(argv[5]) + 1));
+  strcpy(entrada, argv[3]);
+  strcpy(saida, argv[5]);
 
   if(modo == 1 || modo == 2){
-    saida = identifica_saida(argv);
     senha = argv[7];
     if (debug) printf("\nSenha=%s --> Bytes=%d", senha, (int)strlen(senha));
   }
@@ -45,27 +52,43 @@ int main(int argc, char ** argv){
     if (debug) printf("\nSenha=%s --> Bytes=%d", senha, (int)strlen(senha));
   }
 
-  // ARQUIVOS
-  // FILE *arq_entra,
-  // FILE *arq_sai;
-  // arq_entra = fopen(entrada, "r+");
-  // arq_sai = fopen(saida, "w+");
-
-  // Chave K concatenada
+  /* Dívida técnica: Warning pelo método como fiz abaixo*/
   string chave_k;
   chave_k = concatenada(chave_k, senha);
   if (debug) printf("\nSenha concatenada = %s \n", chave_k);
 
-  // Subchaves
   uint64_t * sub_k;
   sub_k = subchaves(chave_k);
 
-  // Liberar memória e sair
+  byte_t * file_bytes;
+  file_size = get_file_size(entrada);
+  file_bytes = malloc(file_size * sizeof (*file_bytes));
+  read_file_to_array(entrada, file_bytes, file_size);
+  printf("\nInput size = %ld \n", file_size);
+
+  free(entrada);
+  free(saida);
   free(chave_k);
   free(sub_k);
+  free(file_bytes);
+  fclose(arq_sai);
   return 0;
 }
-// Converte uma string para uint64
+
+void read_file_to_array(char file_name[], byte_t file_bytes[], long file_size) {
+    FILE *p_input_file;
+
+    p_input_file = fopen(file_name, "rb");
+    if (p_input_file == NULL) {
+        printf("Input file %s not found.\n", file_name);
+        exit(1);
+    }
+
+    fread(file_bytes, sizeof(*file_bytes), file_size, p_input_file);
+    fclose(p_input_file);
+}
+
+/* Converte uma string para uint64 */
 uint64_t chavePara64(string key) {
   int i;
   uint64_t num = 0;
@@ -76,7 +99,8 @@ uint64_t chavePara64(string key) {
   }
   return num;
 }
-// Converter um uint64 para string
+
+/* Converter um uint64 para string */
 string numParaChave(uint64_t num){
   int i;
   string chave = malloc(sizeof(char)*(8+1));
@@ -89,14 +113,15 @@ string numParaChave(uint64_t num){
   chave[8] = 0;
   return chave;
 }
-// Geração de subchaves
+
+/* Geração de subchaves*/
 uint64_t * subchaves(string chave_k){
 
   int i, j, s;
   int r = 12;
   int tam = 2 * r + 1;
 
-  // Output para arquivo
+  /* output para debug */
   FILE * arquivo;
   arquivo = fopen("output_subchaves", "w+");
   fputs ("key_main ",arquivo);
@@ -105,7 +130,7 @@ uint64_t * subchaves(string chave_k){
   for (i=0;i<16;i++) fprintf(arquivo,"%x  ",chave_k[i]);
   fputs ("\n------------ \n",arquivo);
 
-  // Separar a string em duas partes: apenas pra debug
+  /* Separar a string em duas partes: apenas pra debug */
   string esq, dir, reversed;
 
   if (debug) {
@@ -119,7 +144,6 @@ uint64_t * subchaves(string chave_k){
 
   uint64_t esq_val = 0;
   uint64_t dir_val = 0;
-  uint64_t temp = 0;
   uint64_t A;
   uint64_t B;
   uint64_t * L;
@@ -127,7 +151,7 @@ uint64_t * subchaves(string chave_k){
   L = malloc(sizeof(uint64_t)*(tam+1));
   k = malloc(sizeof(uint64_t)*(tam+1));
 
-  // chave_k vira um uint64
+  /* chave_k vira um uint64 */
   esq_val = chavePara64(chave_k);
   dir_val = chavePara64(chave_k+8);
 
@@ -168,57 +192,72 @@ uint64_t * subchaves(string chave_k){
     j = j+1;
   }
 
-  // Subkeys no arquivo
+  /* Subkeys no arquivo */
   for (i=0;i<tam+1;i++) fprintf(arquivo,"k[%02d] = %" PRIx64 "\n", i, k[i]);
   fclose(arquivo);
 
-  // OBS: Como tem que retornar k1, k2, ... k2r+1 volta isso num vetor
-  //      e faz com que onde isso for usado apenas acesse o endereço corretament
   free(L);
   return k;
 }
-// Algoritmo K128
-int Alg_K128(){
+
+int Alg_K128(uint64_t keys[], byte_t file_bytes[]){
+  int r, R = 12;
+  uint64_t key;
+
+  for (r=1;r<R+1;r++){
+    key = keys[(2*r) - 1];
+    uint8_t b1 = (key >> 56) & 0xff;
+    uint8_t b2 = (key >> 48) & 0xff;
+    uint8_t b3 = (key >> 40) & 0xff;
+    uint8_t b4 = (key >> 32) & 0xff;
+    uint8_t b5 = (key >> 24) & 0xff;
+    uint8_t b6 = (key >> 16) & 0xff;
+    uint8_t b7 = (key >>  8) & 0xff;
+    uint8_t b8 = key         & 0xff;
+  }
+
   return 0;
 }
-// Obtem o modo a partir da entrada
+
 int identificar_modo(char ** argv){
-  // Modo (1) Para criptografar arquivos:
-  // programa -c -i <arquivo de entrada> -o <arquivo de saída> -p <senha> -a
   if (strcmp(argv[1],"-c") == 0){
         printf("Criptografar! \n");
         return 1;
   }
-  //  Modo (2) Para decriptografar arquivos:
-  // programa -d -i <arquivo de entrada> -o <arquivo de saída> -p <senha>
   else if (strcmp(argv[1],"-d") == 0){
         printf("Decriptografar! \n");
         return 2;
   }
-  //  Modo (3) Para calcular aleatoriedade pelo método 1 (item 1 abaixo):
-  // programa -1 -i <arquivo de entrada> -p <senha>
   else if (strcmp(argv[1],"-1") == 0){
         printf("Aleatoriedade 1! \n");
         return 3;
   }
-  //  Modo (4) Para calcular aleatoriedade pelo método 2 (item 2 abaixo):
-  // programa -2 -i <arquivo de entrada> -p <senha>
   else if (strcmp(argv[1],"-2") == 0){
         printf("Aleatoriedade 2! \n");
         return 4;
   }
-}
-// Pega o nome do arquivo de entrada
-int identifica_entrada(char ** argv){
-  if (debug) printf("Pegue o arquivo: %s! \n", argv[3]);
   return 0;
 }
-// Pega o nome do arquivo de saída
-int identifica_saida(char ** argv){
-  if (debug) printf("Jogue em: %s! \n", argv[5]);
-  return 0;
+
+long get_file_size(string file_name) {
+    FILE *p_input_file;
+    long file_size;
+
+    p_input_file = fopen(file_name, "rb");
+    if (p_input_file == NULL) {
+        printf("Input file %s not found.\n", file_name);
+        exit(1);
+    }
+
+    fseek(p_input_file, 0, SEEK_END);
+    file_size = ftell(p_input_file);
+    fseek(p_input_file, 0, SEEK_SET);
+    fclose(p_input_file);
+
+    return file_size;
 }
-// Retorna a chave_k concatenada
+
+/* string concatenada*/
 string concatenada(string chave_k, string entrada){
   int i;
   string dest;
