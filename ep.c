@@ -10,24 +10,33 @@
 #include <inttypes.h>
 #include <math.h>
 
-/* Se quiser imprimir as variáveis para debug */
+/* Print some stuff for debug */
 int debug = 1;
 
-/* Definição de tipos */
 typedef unsigned char byte_t;
 typedef char * string;
 
-/* Protótipos das funções */
+/* Functions */
 int Alg_K128(uint64_t keys[], byte_t file_bytes[]);
-int identificar_modo();
+int get_mode();
 string concatenada(string chave_k, string entrada);
-uint64_t chavePara64(string key);
-uint64_t shiftEsq(uint64_t n, unsigned int d);
-uint64_t shiftDir(uint64_t n, unsigned int d);
-uint64_t * subchaves();
+uint8_t mod257(int exp);
+uint64_t key_to_int64(string key);
+uint64_t shift_left(uint64_t n, unsigned int d);
+uint64_t shift_right(uint64_t n, unsigned int d);
+uint64_t * subkeys();
+void iteration (int r, uint64_t keys[], byte_t file_bytes[]);
 
+/* check these */
 long get_file_size(char file_name[]);
 void read_file_to_array(char file_name[], byte_t file_bytes[], long file_size);
+
+
+/* efficience matters */
+int aux;
+uint8_t powers[256];
+uint8_t logs[256];
+
 
 int main(int argc, char ** argv){
 
@@ -39,7 +48,7 @@ int main(int argc, char ** argv){
   FILE * arq_sai;
   arq_sai = fopen(saida, "a+");
 
-  modo = identificar_modo(argv);
+  modo = get_mode(argv);
   entrada = malloc(sizeof(char)*(strlen(argv[3]) + 1));
   saida = malloc(sizeof(char)*(strlen(argv[5]) + 1));
   strcpy(entrada, argv[3]);
@@ -54,20 +63,25 @@ int main(int argc, char ** argv){
     if (debug) printf("\nSenha=%s --> Bytes=%d", senha, (int)strlen(senha));
   }
 
+  /* Fix this */
+  for(aux=0;aux<256;aux++){
+      powers[aux] = mod257(aux);
+      logs[powers[aux]] = (uint8_t) aux;
+  }
+
   /* Dívida técnica: Warning pelo método como fiz abaixo*/
   string chave_k;
   chave_k = concatenada(chave_k, senha);
   if (debug) printf("\nSenha concatenada = %s \n", chave_k);
 
   uint64_t * sub_k;
-  sub_k = subchaves(chave_k);
+  sub_k = subkeys(chave_k);
 
   byte_t * file_bytes;
   file_size = get_file_size(entrada);
   file_bytes = malloc(file_size * sizeof (*file_bytes));
   read_file_to_array(entrada, file_bytes, file_size);
   printf("\nInput size = %ld \n", file_size);
-
   int test_alg = Alg_K128(sub_k, file_bytes);
 
   free(entrada);
@@ -75,25 +89,23 @@ int main(int argc, char ** argv){
   free(chave_k);
   free(sub_k);
   free(file_bytes);
-  fclose(arq_sai);
+  /*fclose(arq_sai);*/
   return 0;
 }
 
 void read_file_to_array(char file_name[], byte_t file_bytes[], long file_size) {
     FILE *p_input_file;
-
     p_input_file = fopen(file_name, "rb");
     if (p_input_file == NULL) {
         printf("Input file %s not found.\n", file_name);
         exit(1);
     }
-
     fread(file_bytes, sizeof(*file_bytes), file_size, p_input_file);
     fclose(p_input_file);
 }
 
 /* Converte uma string para uint64 */
-uint64_t chavePara64(string key) {
+uint64_t key_to_int64(string key) {
   int i;
   uint64_t num = 0;
   num = (uint8_t)key[0];
@@ -105,7 +117,7 @@ uint64_t chavePara64(string key) {
 }
 
 /* Converter um uint64 para string */
-string numParaChave(uint64_t num){
+string number_to_key(uint64_t num){
   int i;
   string chave = malloc(sizeof(char)*(8+1));
   for(i=7; i>-1; i--){
@@ -117,7 +129,7 @@ string numParaChave(uint64_t num){
 }
 
 /* Converter um uint64 para vetor de uint8_t */
-uint8_t * numParaVet(uint64_t num){
+uint8_t * number_to_array(uint64_t num){
   int i;
   string chave = malloc(sizeof(uint8_t)*(8));
   for(i=7; i>-1; i--){
@@ -127,19 +139,15 @@ uint8_t * numParaVet(uint64_t num){
   return chave;
 }
 
-uint64_t shiftEsq(uint64_t n, unsigned int d){
-   /* In n<<d, ultimos d viram zero. To put first 3 bits of n at
-     last, do bitwise or of n<<d with n >>(INT_BITS - d) */
+uint64_t shift_left(uint64_t n, unsigned int d){
    return (n << d)|(n >> (64 - d));
 }
 
-uint64_t shiftDir(uint64_t n, unsigned int d){
-   /* In n>>d, first d bits are 0. To put last 3 bits of at
-     first, do bitwise or of n>>d with n <<(INT_BITS - d) */
+uint64_t shift_right(uint64_t n, unsigned int d){
    return (n >> d)|(n << (64 - d));
 }
 
-uint64_t * subchaves(string chave_k){
+uint64_t * subkeys(string chave_k){
 
   int i, j, s;
   int r = 12;
@@ -147,7 +155,7 @@ uint64_t * subchaves(string chave_k){
 
   /* output para debug */
   FILE * arquivo;
-  arquivo = fopen("output_subchaves", "w+");
+  arquivo = fopen("output_subkeys", "w+");
   fputs ("key_main ",arquivo);
   for (i=0;i<16;i++) fprintf(arquivo," %c  ",chave_k[i]);
   fputs ("\nkey_hexa ",arquivo);
@@ -157,7 +165,7 @@ uint64_t * subchaves(string chave_k){
   /* Separar a string em duas partes: apenas pra debug */
   string esq, dir, reversed;
 
-  if (debug) {
+  if (debug){
     esq = malloc(sizeof(char)*(8+1));
     dir = malloc(sizeof(char)*(8+1));
     memcpy(esq,chave_k,8);
@@ -176,15 +184,15 @@ uint64_t * subchaves(string chave_k){
   k = malloc(sizeof(uint64_t)*(tam+1));
 
   /* chave_k vira um uint64 */
-  esq_val = chavePara64(chave_k);
-  dir_val = chavePara64(chave_k+8);
+  esq_val = key_to_int64(chave_k);
+  dir_val = key_to_int64(chave_k+8);
 
-  if (debug) {
+  if (debug){
     printf("Esquerda: %s\n", esq);
     printf("Direita: %s\n", dir);
-    reversed = numParaChave(esq_val);
+    reversed = number_to_key(esq_val);
     printf("Esquerda reversa : %s\n", reversed);
-    reversed = numParaChave(dir_val);
+    reversed = number_to_key(dir_val);
     printf("Direita reversa : %s\n", reversed);
     printf("Valor esq (hex): %" PRIx64 "\n", esq_val);
     printf("Valor dir (hex): %" PRIx64 "\n", dir_val);
@@ -209,11 +217,11 @@ uint64_t * subchaves(string chave_k){
 
   for (s=1;s<(tam+1);s++){
     k[i] = (k[i] + A + B);
-    k[i] = shiftEsq(k[i], 3);
+    k[i] = shift_left(k[i], 3);
     A = k[i];
     i = i+1;
     L[j] = (L[j] + A + B);
-    L[j] = shiftEsq(L[j], A + B);
+    L[j] = shift_left(L[j], A + B);
     B = L[j];
     j = j+1;
   }
@@ -225,23 +233,80 @@ uint64_t * subchaves(string chave_k){
   return k;
 }
 
+uint8_t mod257(int exp){
+  int MOD = 257;
+  int val = 45;
+  if(exp == 0)
+    return 1;
+  int v = mod257(exp/2);
+  if(exp % 2 == 0)
+    return (v*v) % MOD;
+  else
+    return (((v*val) % MOD) * v) % MOD;
+}
+
 int Alg_K128(uint64_t keys[], byte_t file_bytes[]){
   int i, r, R = 12;
   uint64_t key;
   uint8_t * b;
+  uint8_t C[8];
+
+  if (debug) for(i=0;i<256;i++) printf("exp: %3d \t y: %3d \tx: %3d \n", i, powers[i], logs[i]);
 
   /* Separar os bytes da chave */
-  for (r=1;r<R+1;r++){
+/*  for (r=1;r<R+1;r++){
     key = keys[(2*r) - 1];
-    b = numParaVet(key);
+    b = number_to_array(key);
     printf("\n");
     for (i=0;i<8;i++) printf("%" PRIx8, b[i]);
     free(b);
-  }
+    iteration(r, keys, (file_bytes+8));
+  }*/
   return 0;
 }
 
-int identificar_modo(char ** argv){
+void iteration (int r, uint64_t keys[], byte_t file_bytes[]){
+  uint8_t * C = malloc(sizeof(uint8_t)*(8));
+  uint8_t * k1 = number_to_array(keys[(2*r - 1)]);
+  uint8_t * k2 = number_to_array(keys[(2*r)]);
+
+  /* Primeiro passo */
+  C[0] = file_bytes[0] ^ k1[0];
+  C[1] = file_bytes[1] + k1[1];
+  C[2] = file_bytes[2] ^ k1[2];
+  C[3] = file_bytes[3] + k1[3];
+  C[4] = file_bytes[4] ^ k1[4];
+  C[5] = file_bytes[5] + k1[5];
+  C[6] = file_bytes[6] ^ k1[6];
+  C[7] = file_bytes[7] + k1[7];
+
+  /*Segundo passo*/
+  C[0] = powers[C[0]];
+  C[1] = logs[C[1]];
+  C[2] = logs[C[2]];
+  C[3] = powers[C[3]];
+  C[4] = powers[C[4]];
+  C[5] = logs[C[5]];
+  C[6] = logs[C[6]];
+  C[7] = powers[C[7]];
+
+  /*Terceiro passo*/
+  C[0] = file_bytes[0] + k2[0];
+  C[1] = file_bytes[1] ^ k2[1];
+  C[2] = file_bytes[2] + k2[2];
+  C[3] = file_bytes[3] + k2[3];
+  C[4] = file_bytes[4] + k2[4];
+  C[5] = file_bytes[5] + k2[5];
+  C[6] = file_bytes[6] + k2[6];
+  C[7] = file_bytes[7] + k2[7];
+
+  /*Quarto passo*/
+  free(k1);
+  free(k2);
+  free(C);
+}
+
+int get_mode(char ** argv){
   if (strcmp(argv[1],"-c") == 0){
         printf("Criptografar! \n");
         return 1;
