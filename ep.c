@@ -33,7 +33,6 @@ long get_file_size(char file_name[]);
 void read_file_to_array(char file_name[], byte_t file_bytes[], long file_size);
 
 /* efficience matters */
-int aux;
 uint8_t powers[256];
 uint8_t logs[256];
 
@@ -75,6 +74,7 @@ int main(int argc, char ** argv){
   file_bytes = malloc(file_size * sizeof (*file_bytes));
   read_file_to_array(entrada, file_bytes, file_size);
   printf("\nInput size = %ld \n", file_size);
+  precalculate();
   Alg_K128(sub_k, file_bytes);
 
   free(entrada);
@@ -87,6 +87,7 @@ int main(int argc, char ** argv){
 }
 
 void precalculate(){
+  int aux;
   for(aux=0;aux<256;aux++){
       powers[aux] = mod257(aux);
       logs[powers[aux]] = (uint8_t) aux;
@@ -164,16 +165,7 @@ uint64_t * subkeys(string chave_k){
   fputs ("\n------------ \n",arquivo);
 
   /* Separar a string em duas partes: apenas pra debug */
-  string esq, dir, reversed;
-
-  if (debug){
-    esq = malloc(sizeof(char)*(8+1));
-    dir = malloc(sizeof(char)*(8+1));
-    memcpy(esq,chave_k,8);
-    memcpy(dir,chave_k+8,8);
-    esq[8] = 0;
-    dir[8] = 0;
-  }
+  string reversed;
 
   uint64_t esq_val = 0;
   uint64_t dir_val = 0;
@@ -187,19 +179,6 @@ uint64_t * subkeys(string chave_k){
   /* chave_k vira um uint64 */
   esq_val = key_to_int64(chave_k);
   dir_val = key_to_int64(chave_k+8);
-
-  if (debug){
-    printf("Esquerda: %s\n", esq);
-    printf("Direita: %s\n", dir);
-    reversed = number_to_key(esq_val);
-    printf("Esquerda reversa : %s\n", reversed);
-    reversed = number_to_key(dir_val);
-    printf("Direita reversa : %s\n", reversed);
-    printf("Valor esq (hex): %" PRIx64 "\n", esq_val);
-    printf("Valor dir (hex): %" PRIx64 "\n", dir_val);
-    free(esq);
-    free(dir);
-  }
 
   L[0] = esq_val;
   L[1] = dir_val;
@@ -259,7 +238,9 @@ void Alg_K128(uint64_t keys[], byte_t file_bytes[]){
   /* Iterações: 12 rounds */
   /* for (r=1;r<=R;r++) iteration(r, keys, (file_bytes+(8*i))); */
 
-  iteration(1, keys, (file_bytes));
+  uint8_t test[] = { 0x43, 0x48, 0x3e, 0xb1, 0x8d, 0x5a, 0xdf, 0x93 };
+
+  iteration(1, keys, test);
 
   /* Escrever no arquivo */
 /*  for (i=0;i<tam+1;i++) fprintf(arquivo,"k[%02d] = %" PRIx64 "\n", i, k[i]);*/
@@ -273,15 +254,37 @@ uint8_t * iteration (int r, uint64_t keys[], byte_t file_bytes[]){
   uint8_t * k2 = number_to_array(keys[(2*r)]);
   uint8_t * k3 = number_to_array(keys[(2*r + 1)]);
 
+  int i;
+  printf("\nDEBUG iteration: \n");
+  printf("\nk_1 blocks: \t");
+  for (i=0;i<8;i++){
+    printf("%02"PRIx8 " ", k1[i]);
+  }
+  printf("\nk_2 blocks: \t");
+  for (i=0;i<8;i++){
+    printf("%02"PRIx8 " ", k2[i]);
+  }
+  printf("\nB: \t\t");
+  for (i=0;i<8;i++){
+    printf("%02"PRIx8 " ", file_bytes[i]);
+  }
+  printf("\n\n");
+
   /* Primeiro passo */
   C[0] = file_bytes[0] ^ k1[0];
   C[1] = file_bytes[1] + k1[1];
-  C[2] = file_bytes[2] ^ k1[2];
-  C[3] = file_bytes[3] + k1[3];
+  C[2] = file_bytes[2] + k1[2];
+  C[3] = file_bytes[3] ^ k1[3];
   C[4] = file_bytes[4] ^ k1[4];
   C[5] = file_bytes[5] + k1[5];
-  C[6] = file_bytes[6] ^ k1[6];
-  C[7] = file_bytes[7] + k1[7];
+  C[6] = file_bytes[6] + k1[6];
+  C[7] = file_bytes[7] ^ k1[7];
+
+  printf("Parte 1: \n");
+  for (i=0;i<8;i++){
+    printf("%"PRIx8 " ", C[i]);
+  }
+  printf("\n");
 
   /*Segundo passo*/
   C[0] = powers[C[0]];
@@ -293,15 +296,27 @@ uint8_t * iteration (int r, uint64_t keys[], byte_t file_bytes[]){
   C[6] = logs[C[6]];
   C[7] = powers[C[7]];
 
+  printf("Parte 2: \n");
+  for (i=0;i<8;i++){
+    printf("%02"PRIx8 " ", C[i]);
+  }
+  printf("\n");
+
   /*Terceiro passo*/
-  C[0] = file_bytes[0] + k2[0];
-  C[1] = file_bytes[1] ^ k2[1];
-  C[2] = file_bytes[2] + k2[2];
-  C[3] = file_bytes[3] + k2[3];
-  C[4] = file_bytes[4] + k2[4];
-  C[5] = file_bytes[5] + k2[5];
-  C[6] = file_bytes[6] + k2[6];
-  C[7] = file_bytes[7] + k2[7];
+  C[0] = C[0] + k2[0];
+  C[1] = C[1] ^ k2[1];
+  C[2] = C[2] ^ k2[2];
+  C[3] = C[3] + k2[3];
+  C[4] = C[4] + k2[4];
+  C[5] = C[5] ^ k2[5];
+  C[6] = C[6] ^ k2[6];
+  C[7] = C[7] + k2[7];
+
+  printf("Parte 3: \n");
+  for (i=0;i<8;i++){
+    printf("%02"PRIx8 " ", C[i]);
+  }
+  printf("\n");
 
   /*Quarto passo*/
   mid[0] = (2*C[0] + C[1]) % 256;
@@ -342,15 +357,27 @@ uint8_t * iteration (int r, uint64_t keys[], byte_t file_bytes[]){
   mid[6] = (2*C[5] + C[7]) % 256;
   mid[7] = (C[5] + C[7]) % 256;
 
+  printf("Parte 4: \n");
+  for (i=0;i<8;i++){
+    printf("%02"PRIx8 " ", mid[i]);
+  }
+  printf("\n");
+
   /* Transformação final */
   C[0] = mid[0] ^ k3[0];
   C[1] = mid[1] + k3[1];
-  C[2] = mid[2] ^ k3[2];
-  C[3] = mid[3] + k3[3];
+  C[2] = mid[2] + k3[2];
+  C[3] = mid[3] ^ k3[3];
   C[4] = mid[4] ^ k3[4];
   C[5] = mid[5] + k3[5];
-  C[6] = mid[6] ^ k3[6];
-  C[7] = mid[7] + k3[7];
+  C[6] = mid[6] + k3[6];
+  C[7] = mid[7] ^ k3[7];
+
+  printf("\nFinal da iteração - com tranformação final: \n");
+  for (i=0;i<8;i++){
+    printf("%02"PRIx8 " ", C[i]);
+  }
+  printf("\n");
 
   free(k1);
   free(k2);
