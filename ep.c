@@ -17,26 +17,25 @@ typedef unsigned char byte_t;
 typedef char * string;
 
 /* Functions */
-int Alg_K128(uint64_t keys[], byte_t file_bytes[]);
+void precalculate();
+void Alg_K128(uint64_t keys[], byte_t file_bytes[]);
 int get_mode();
-string concatenada(string chave_k, string entrada);
+string concat_passwd(string chave_k, string entrada);
 uint8_t mod257(int exp);
+uint8_t * iteration (int r, uint64_t keys[], byte_t file_bytes[]);
 uint64_t key_to_int64(string key);
 uint64_t shift_left(uint64_t n, unsigned int d);
 uint64_t shift_right(uint64_t n, unsigned int d);
 uint64_t * subkeys();
-void iteration (int r, uint64_t keys[], byte_t file_bytes[]);
 
 /* check these */
 long get_file_size(char file_name[]);
 void read_file_to_array(char file_name[], byte_t file_bytes[], long file_size);
 
-
 /* efficience matters */
 int aux;
 uint8_t powers[256];
 uint8_t logs[256];
-
 
 int main(int argc, char ** argv){
 
@@ -63,16 +62,10 @@ int main(int argc, char ** argv){
     if (debug) printf("\nSenha=%s --> Bytes=%d", senha, (int)strlen(senha));
   }
 
-  /* Fix this */
-  for(aux=0;aux<256;aux++){
-      powers[aux] = mod257(aux);
-      logs[powers[aux]] = (uint8_t) aux;
-  }
-
   /* Dívida técnica: Warning pelo método como fiz abaixo*/
   string chave_k;
-  chave_k = concatenada(chave_k, senha);
-  if (debug) printf("\nSenha concatenada = %s \n", chave_k);
+  chave_k = concat_passwd(chave_k, senha);
+  if (debug) printf("\nSenha concat_passwd = %s \n", chave_k);
 
   uint64_t * sub_k;
   sub_k = subkeys(chave_k);
@@ -82,7 +75,7 @@ int main(int argc, char ** argv){
   file_bytes = malloc(file_size * sizeof (*file_bytes));
   read_file_to_array(entrada, file_bytes, file_size);
   printf("\nInput size = %ld \n", file_size);
-  int test_alg = Alg_K128(sub_k, file_bytes);
+  Alg_K128(sub_k, file_bytes);
 
   free(entrada);
   free(saida);
@@ -91,6 +84,14 @@ int main(int argc, char ** argv){
   free(file_bytes);
   /*fclose(arq_sai);*/
   return 0;
+}
+
+void precalculate(){
+  for(aux=0;aux<256;aux++){
+      powers[aux] = mod257(aux);
+      logs[powers[aux]] = (uint8_t) aux;
+  }
+    /* if (debug) for(i=0;i<256;i++) printf("exp: %3d \t y: %3d \tx: %3d \n", i, powers[i], logs[i]); */
 }
 
 void read_file_to_array(char file_name[], byte_t file_bytes[], long file_size) {
@@ -245,30 +246,32 @@ uint8_t mod257(int exp){
     return (((v*val) % MOD) * v) % MOD;
 }
 
-int Alg_K128(uint64_t keys[], byte_t file_bytes[]){
+void Alg_K128(uint64_t keys[], byte_t file_bytes[]){
   int i, r, R = 12;
-  uint64_t key;
-  uint8_t * b;
-  uint8_t C[8];
+  uint64_t key, C[8];
 
-  if (debug) for(i=0;i<256;i++) printf("exp: %3d \t y: %3d \tx: %3d \n", i, powers[i], logs[i]);
+  FILE * arquivo;
+  arquivo = fopen("output_k128", "a+");
+  fputs ("key_main ",arquivo);
+/*  for (i=0;i<16;i++) fprintf(arquivo," %c  ",chave_k[i]);
+  fputs ("\nkey_hexa ",arquivo); */
 
-  /* Separar os bytes da chave */
-/*  for (r=1;r<R+1;r++){
-    key = keys[(2*r) - 1];
-    b = number_to_array(key);
-    printf("\n");
-    for (i=0;i<8;i++) printf("%" PRIx8, b[i]);
-    free(b);
-    iteration(r, keys, (file_bytes+8));
-  }*/
-  return 0;
+  /* Iterações: 12 rounds */
+  /* for (r=1;r<=R;r++) iteration(r, keys, (file_bytes+(8*i))); */
+
+  iteration(1, keys, (file_bytes));
+
+  /* Escrever no arquivo */
+/*  for (i=0;i<tam+1;i++) fprintf(arquivo,"k[%02d] = %" PRIx64 "\n", i, k[i]);*/
+  fclose(arquivo);
 }
 
-void iteration (int r, uint64_t keys[], byte_t file_bytes[]){
+uint8_t * iteration (int r, uint64_t keys[], byte_t file_bytes[]){
   uint8_t * C = malloc(sizeof(uint8_t)*(8));
+  uint8_t * mid = malloc(sizeof(uint8_t)*(8));
   uint8_t * k1 = number_to_array(keys[(2*r - 1)]);
   uint8_t * k2 = number_to_array(keys[(2*r)]);
+  uint8_t * k3 = number_to_array(keys[(2*r + 1)]);
 
   /* Primeiro passo */
   C[0] = file_bytes[0] ^ k1[0];
@@ -301,9 +304,59 @@ void iteration (int r, uint64_t keys[], byte_t file_bytes[]){
   C[7] = file_bytes[7] + k2[7];
 
   /*Quarto passo*/
+  mid[0] = (2*C[0] + C[1]) % 256;
+  mid[1] = (C[0] + C[1]) % 256;
+
+  mid[2] = (2*C[2] + C[3]) % 256;
+  mid[3] = (C[2] + C[3]) % 256;
+
+  mid[4] = (2*C[4] + C[5]) % 256;
+  mid[5] = (C[4] + C[5]) % 256;
+
+  mid[6] = (2*C[6] + C[7]) % 256;
+  mid[7] = (C[6] + C[7]) % 256;
+
+  /*Quarto - parte 2 */
+  C[0] = (2*mid[0] + mid[2]) % 256;
+  C[1] = (mid[0] + mid[2]) % 256;
+
+  C[2] = (2*mid[4] + mid[6]) % 256;
+  C[3] = (mid[4] + mid[6]) % 256;
+
+  C[4] = (2*mid[1] + mid[3]) % 256;
+  C[5] = (mid[1] + mid[3]) % 256;
+
+  C[6] = (2*mid[5] + mid[7]) % 256;
+  C[7] = (mid[5] + mid[7]) % 256;
+
+  /*Quarto - parte 3 */
+  mid[0] = (2*C[0] + C[2]) % 256;
+  mid[1] = (C[0] + C[2]) % 256;
+
+  mid[2] = (2*C[4] + C[6]) % 256;
+  mid[3] = (C[4] + C[6]) % 256;
+
+  mid[4] = (2*C[1] + C[3]) % 256;
+  mid[5] = (C[1] + C[3]) % 256;
+
+  mid[6] = (2*C[5] + C[7]) % 256;
+  mid[7] = (C[5] + C[7]) % 256;
+
+  /* Transformação final */
+  C[0] = mid[0] ^ k3[0];
+  C[1] = mid[1] + k3[1];
+  C[2] = mid[2] ^ k3[2];
+  C[3] = mid[3] + k3[3];
+  C[4] = mid[4] ^ k3[4];
+  C[5] = mid[5] + k3[5];
+  C[6] = mid[6] ^ k3[6];
+  C[7] = mid[7] + k3[7];
+
   free(k1);
   free(k2);
-  free(C);
+  free(k3);
+  free(mid);
+  return C;
 }
 
 int get_mode(char ** argv){
@@ -354,7 +407,7 @@ int identifica_saida(char ** argv){
   return 0;
 }
 
-string concatenada(string chave_k, string entrada){
+string concat_passwd(string chave_k, string entrada){
   int i;
   string dest;
   dest = malloc(sizeof(char)*(240+1));
