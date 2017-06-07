@@ -24,11 +24,13 @@ void        alg_k128_first_step(uint8_t C[], uint8_t B[], uint8_t k[]);
 void        alg_k128_second_step(uint8_t C[]);
 void        alg_k128_third_step(uint8_t C[], uint8_t k[]);
 void        alg_k128_fourth_step(uint8_t C[]);
+void        alg_k128_final_transformation(uint8_t C[], uint8_t k[]);
 
 void        alg_k128_reverse_first_step(uint8_t C[], uint8_t B[], uint8_t k[]);
 void        alg_k128_reverse_second_step(uint8_t C[]);
 void        alg_k128_reverse_third_step(uint8_t C[], uint8_t k[]);
 void        alg_k128_reverse_fourth_step(uint8_t C[]);
+void        alg_k128_reverse_final_transformation(uint8_t C[], uint8_t k[]);
 
 void        iteration (int r, uint64_t keys[], byte_t file_bytes[]);
 void        decript_iteration (int r, uint64_t keys[], byte_t file_bytes[]);
@@ -465,9 +467,30 @@ void alg_k128_reverse_fourth_step(uint8_t C[]){
   }
 }
 
+void alg_k128_final_transformation(uint8_t C[], uint8_t k[]){
+  C[0] = C[0] ^ k[0];
+  C[1] = C[1] + k[1];
+  C[2] = C[2] + k[2];
+  C[3] = C[3] ^ k[3];
+  C[4] = C[4] ^ k[4];
+  C[5] = C[5] + k[5];
+  C[6] = C[6] + k[6];
+  C[7] = C[7] ^ k[7];
+}
+
+void alg_k128_reverse_final_transformation(uint8_t C[], uint8_t k[]){
+  C[0] = C[0] ^ k[0];
+  C[1] = C[1] - k[1];
+  C[2] = C[2] - k[2];
+  C[3] = C[3] ^ k[3];
+  C[4] = C[4] ^ k[4];
+  C[5] = C[5] - k[5];
+  C[6] = C[6] - k[6];
+  C[7] = C[7] ^ k[7];
+}
+
 void alg_k128(uint64_t keys[], byte_t file_bytes[]){
   int i, r, R = 12;
-  uint64_t key, C[8];
 
 /* DEBUG STUFF NOT CURRENTLY BEING USED
   FILE * arquivo;
@@ -479,32 +502,22 @@ void alg_k128(uint64_t keys[], byte_t file_bytes[]){
   fclose(arquivo);
 */
 
-  /* Cada bloco precisa passar por 12 rouds! */
-  /* Iterações: 12 rounds */
-  /* for (r=1;r<=R;r++) iteration(r, keys, (file_bytes+(8*i))); */
-
-  /* Transformação final */
-/*
-  C[0] = mid[0] ^ k3[0];
-  C[1] = mid[1] + k3[1];
-  C[2] = mid[2] + k3[2];
-  C[3] = mid[3] ^ k3[3];
-  C[4] = mid[4] ^ k3[4];
-  C[5] = mid[5] + k3[5];
-  C[6] = mid[6] + k3[6];
-  C[7] = mid[7] ^ k3[7];
-
-  printf("\nFinal da iteração - com tranformação final: \n");
-  for (i=0;i<8;i++){
-    printf("%02"PRIx8 " ", C[i]);
-  }
-  printf("\n");
-*/
-
   /* Testing iteration and decript_iteration */
   uint8_t test[] = { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x43, 0x48, 0x3e, 0xb1, 0x8d, 0x5a, 0xdf, 0x93 };
-  iteration(1, keys, test+8);
-  decript_iteration(1, keys, test+8);
+  uint8_t * final_key = number_to_array(keys[(2*R + 1)]);
+
+  /* Cada bloco precisa passar por 12 rounds! */
+  for (r=1;r<=R;r++) iteration(r, keys, test+8);
+
+  /* Depois é aplicada uma transformação final */
+  alg_k128_final_transformation(test+8, final_key);
+
+  /* Testando decript */
+  alg_k128_reverse_final_transformation(test+8, final_key);
+  for (r=R;r>=1;r--) decript_iteration(r, keys, test+8);
+
+  /*iteration(1, keys, test+8);
+  decript_iteration(1, keys, test+8);*/
 }
 
 /* Duvida: Deveria ser feito diretamente em file_bytes? */
@@ -514,7 +527,7 @@ void iteration (int r, uint64_t keys[], byte_t file_bytes[]){
 
   if (debug){
     int i;
-    printf("\nDEBUG iteration: \n");
+    printf("\nDEBUG iteration number (%d): \n", r);
     printf("\nk_1 blocks: \t"); for (i=0;i<8;i++) printf("%02"PRIx8 " ", k1[i]);
     printf("\nk_2 blocks: \t"); for (i=0;i<8;i++) printf("%02"PRIx8 " ", k2[i]);
     printf("\nB: \t\t"); for (i=0;i<8;i++) printf("%02"PRIx8 " ", file_bytes[i]);
@@ -538,7 +551,7 @@ void decript_iteration (int r, uint64_t keys[], byte_t file_bytes[]){
 
   if (debug){
     int i;
-    printf("\nDEBUG decript_iteration: \n");
+    printf("\nDEBUG decript_iteration number (%d): \n", r);
     printf("\nk_1 blocks: \t"); for (i=0;i<8;i++) printf("%02"PRIx8 " ", k1[i]);
     printf("\nk_2 blocks: \t"); for (i=0;i<8;i++) printf("%02"PRIx8 " ", k2[i]);
     printf("\nB: \t\t"); for (i=0;i<8;i++) printf("%02"PRIx8 " ", file_bytes[i]);
