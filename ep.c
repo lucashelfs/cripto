@@ -17,16 +17,19 @@ typedef unsigned char byte_t;
 typedef char * string;
 
 /* Functions */
-void precalculate();
-void Alg_K128(uint64_t keys[], byte_t file_bytes[]);
-int get_mode();
-string concat_passwd(string chave_k, string entrada);
-uint8_t mod257(int exp);
-uint8_t * iteration (int r, uint64_t keys[], byte_t file_bytes[]);
-uint64_t key_to_int64(string key);
-uint64_t shift_left(uint64_t n, unsigned int d);
-uint64_t shift_right(uint64_t n, unsigned int d);
-uint64_t * subkeys();
+void        precalculate();
+void        Alg_K128(uint64_t keys[], byte_t file_bytes[]);
+void        first_step(uint8_t C[], uint8_t B[], uint8_t k[]);
+void        reverse_first_step(uint8_t C[], uint8_t B[], uint8_t k[]);
+int         get_mode();
+string      concat_passwd(string chave_k, string input);
+uint8_t     mod257(int exp);
+uint8_t *   iteration (int r, uint64_t keys[], byte_t file_bytes[]);
+/*uint8_t *   decript_iteration (int r, uint64_t keys[], byte_t file_bytes[]);*/
+uint64_t    key_to_int64(string key);
+uint64_t    shift_left(uint64_t n, unsigned int d);
+uint64_t    shift_right(uint64_t n, unsigned int d);
+uint64_t *  subkeys();
 
 /* check these */
 long get_file_size(char file_name[]);
@@ -41,16 +44,20 @@ int main(int argc, char ** argv){
   /* Dívida técnica: consertar intro  */
   int modo=0;
   long file_size;
-  string senha, entrada, saida;
+  string senha, input, output;
+
+  /*
 
   FILE * arq_sai;
-  arq_sai = fopen(saida, "a+");
+  arq_sai = fopen(output, "a+");
+
+  */
 
   modo = get_mode(argv);
-  entrada = malloc(sizeof(char)*(strlen(argv[3]) + 1));
-  saida = malloc(sizeof(char)*(strlen(argv[5]) + 1));
-  strcpy(entrada, argv[3]);
-  strcpy(saida, argv[5]);
+  input = malloc(sizeof(char)*(strlen(argv[3]) + 1));
+  output = malloc(sizeof(char)*(strlen(argv[5]) + 1));
+  strcpy(input, argv[3]);
+  strcpy(output, argv[5]);
 
   if(modo == 1 || modo == 2){
     senha = argv[7];
@@ -70,15 +77,15 @@ int main(int argc, char ** argv){
   sub_k = subkeys(chave_k);
 
   byte_t * file_bytes;
-  file_size = get_file_size(entrada);
+  file_size = get_file_size(input);
   file_bytes = malloc(file_size * sizeof (*file_bytes));
-  read_file_to_array(entrada, file_bytes, file_size);
+  read_file_to_array(input, file_bytes, file_size);
   printf("\nInput size = %ld \n", file_size);
   precalculate();
   Alg_K128(sub_k, file_bytes);
 
-  free(entrada);
-  free(saida);
+  free(input);
+  free(output);
   free(chave_k);
   free(sub_k);
   free(file_bytes);
@@ -88,11 +95,17 @@ int main(int argc, char ** argv){
 
 void precalculate(){
   int aux;
-  for(aux=0;aux<256;aux++){
+    for(aux=0;aux<256;aux++){
       powers[aux] = mod257(aux);
       logs[powers[aux]] = (uint8_t) aux;
   }
-    /* if (debug) for(i=0;i<256;i++) printf("exp: %3d \t y: %3d \tx: %3d \n", i, powers[i], logs[i]); */
+  /*if (debug) {
+    int i;
+    FILE * arquivo;
+    arquivo = fopen("output_logs_potencias", "w+");
+    for(i=0;i<256;i++) fprintf(arquivo, "exp: %3d \t y: %3d \tx: %3d \n", i, powers[i], logs[i]);
+    fclose(arquivo);
+  }*/
 }
 
 void read_file_to_array(char file_name[], byte_t file_bytes[], long file_size) {
@@ -106,7 +119,6 @@ void read_file_to_array(char file_name[], byte_t file_bytes[], long file_size) {
     fclose(p_input_file);
 }
 
-/* Converte uma string para uint64 */
 uint64_t key_to_int64(string key) {
   int i;
   uint64_t num = 0;
@@ -118,7 +130,6 @@ uint64_t key_to_int64(string key) {
   return num;
 }
 
-/* Converter um uint64 para string */
 string number_to_key(uint64_t num){
   int i;
   string chave = malloc(sizeof(char)*(8+1));
@@ -130,7 +141,6 @@ string number_to_key(uint64_t num){
   return chave;
 }
 
-/* Converter um uint64 para vetor de uint8_t */
 uint8_t * number_to_array(uint64_t num){
   int i;
   string chave = malloc(sizeof(uint8_t)*(8));
@@ -195,7 +205,7 @@ uint64_t * subkeys(string chave_k){
   A = 0x0000000000000000;
   B = 0x0000000000000000;
 
-  for (s=1;s<(tam+1);s++){
+  for (s=0;s<(tam+1);s++){
     k[i] = (k[i] + A + B);
     k[i] = shift_left(k[i], 3);
     A = k[i];
@@ -225,68 +235,36 @@ uint8_t mod257(int exp){
     return (((v*val) % MOD) * v) % MOD;
 }
 
-void Alg_K128(uint64_t keys[], byte_t file_bytes[]){
-  int i, r, R = 12;
-  uint64_t key, C[8];
+void first_step(uint8_t C[], uint8_t B[], uint8_t k[]){ /* tested */
+  C[0] = B[0] ^ k[0];
+  C[1] = B[1] + k[1];
+  C[2] = B[2] + k[2];
+  C[3] = B[3] ^ k[3];
+  C[4] = B[4] ^ k[4];
+  C[5] = B[5] + k[5];
+  C[6] = B[6] + k[6];
+  C[7] = B[7] ^ k[7];
 
-  FILE * arquivo;
-  arquivo = fopen("output_k128", "a+");
-  fputs ("key_main ",arquivo);
-/*  for (i=0;i<16;i++) fprintf(arquivo," %c  ",chave_k[i]);
-  fputs ("\nkey_hexa ",arquivo); */
-
-  /* Iterações: 12 rounds */
-  /* for (r=1;r<=R;r++) iteration(r, keys, (file_bytes+(8*i))); */
-
-  uint8_t test[] = { 0x43, 0x48, 0x3e, 0xb1, 0x8d, 0x5a, 0xdf, 0x93 };
-
-  iteration(1, keys, test);
-
-  /* Escrever no arquivo */
-/*  for (i=0;i<tam+1;i++) fprintf(arquivo,"k[%02d] = %" PRIx64 "\n", i, k[i]);*/
-  fclose(arquivo);
+  if (debug){
+    int i;
+    printf("Parte 1: ");
+    for (i=0;i<8;i++) printf("%02"PRIx8 " ", C[i]);
+    printf("\n");
+  }
 }
 
-uint8_t * iteration (int r, uint64_t keys[], byte_t file_bytes[]){
-  uint8_t * C = malloc(sizeof(uint8_t)*(8));
-  uint8_t * mid = malloc(sizeof(uint8_t)*(8));
-  uint8_t * k1 = number_to_array(keys[(2*r - 1)]);
-  uint8_t * k2 = number_to_array(keys[(2*r)]);
-  uint8_t * k3 = number_to_array(keys[(2*r + 1)]);
+void reverse_first_step(uint8_t C[], uint8_t B[], uint8_t k[]){ /* tested */
+  C[0] = B[0] ^ k[0];
+  C[1] = B[1] - k[1];
+  C[2] = B[2] - k[2];
+  C[3] = B[3] ^ k[3];
+  C[4] = B[4] ^ k[4];
+  C[5] = B[5] - k[5];
+  C[6] = B[6] - k[6];
+  C[7] = B[7] ^ k[7];
+}
 
-  int i;
-  printf("\nDEBUG iteration: \n");
-  printf("\nk_1 blocks: \t");
-  for (i=0;i<8;i++){
-    printf("%02"PRIx8 " ", k1[i]);
-  }
-  printf("\nk_2 blocks: \t");
-  for (i=0;i<8;i++){
-    printf("%02"PRIx8 " ", k2[i]);
-  }
-  printf("\nB: \t\t");
-  for (i=0;i<8;i++){
-    printf("%02"PRIx8 " ", file_bytes[i]);
-  }
-  printf("\n\n");
-
-  /* Primeiro passo */
-  C[0] = file_bytes[0] ^ k1[0];
-  C[1] = file_bytes[1] + k1[1];
-  C[2] = file_bytes[2] + k1[2];
-  C[3] = file_bytes[3] ^ k1[3];
-  C[4] = file_bytes[4] ^ k1[4];
-  C[5] = file_bytes[5] + k1[5];
-  C[6] = file_bytes[6] + k1[6];
-  C[7] = file_bytes[7] ^ k1[7];
-
-  printf("Parte 1: \n");
-  for (i=0;i<8;i++){
-    printf("%"PRIx8 " ", C[i]);
-  }
-  printf("\n");
-
-  /*Segundo passo*/
+void second_step(uint8_t C[]){/* tested */
   C[0] = powers[C[0]];
   C[1] = logs[C[1]];
   C[2] = logs[C[2]];
@@ -296,74 +274,121 @@ uint8_t * iteration (int r, uint64_t keys[], byte_t file_bytes[]){
   C[6] = logs[C[6]];
   C[7] = powers[C[7]];
 
-  printf("Parte 2: \n");
-  for (i=0;i<8;i++){
-    printf("%02"PRIx8 " ", C[i]);
+  if (debug){
+    int i;
+    printf("Parte 2: ");
+    for (i=0;i<8;i++) printf("%02"PRIx8 " ", C[i]);
+    printf("\n");
   }
-  printf("\n");
+}
 
-  /*Terceiro passo*/
-  C[0] = C[0] + k2[0];
-  C[1] = C[1] ^ k2[1];
-  C[2] = C[2] ^ k2[2];
-  C[3] = C[3] + k2[3];
-  C[4] = C[4] + k2[4];
-  C[5] = C[5] ^ k2[5];
-  C[6] = C[6] ^ k2[6];
-  C[7] = C[7] + k2[7];
+void reverse_second_step(uint8_t C[]){ /* tested */
+  C[0] = logs[C[0]];
+  C[1] = powers[C[1]];
+  C[2] = powers[C[2]];
+  C[3] = logs[C[3]];
+  C[4] = logs[C[4]];
+  C[5] = powers[C[5]];
+  C[6] = powers[C[6]];
+  C[7] = logs[C[7]];
+}
 
-  printf("Parte 3: \n");
-  for (i=0;i<8;i++){
-    printf("%02"PRIx8 " ", C[i]);
+void third_step(uint8_t C[], uint8_t k[]){/* tested */
+  C[0] = C[0] + k[0];
+  C[1] = C[1] ^ k[1];
+  C[2] = C[2] ^ k[2];
+  C[3] = C[3] + k[3];
+  C[4] = C[4] + k[4];
+  C[5] = C[5] ^ k[5];
+  C[6] = C[6] ^ k[6];
+  C[7] = C[7] + k[7];
+
+  if (debug){
+    int i;
+    printf("Parte 3: ");
+    for (i=0;i<8;i++) printf("%02"PRIx8 " ", C[i]);
+    printf("\n");
   }
-  printf("\n");
+}
 
-  /*Quarto passo*/
-  mid[0] = (2*C[0] + C[1]) % 256;
-  mid[1] = (C[0] + C[1]) % 256;
+void reverse_third_step(uint8_t C[], uint8_t k[]){
+  C[0] = C[0] - k[0];
+  C[1] = C[1] ^ k[1];
+  C[2] = C[2] ^ k[2];
+  C[3] = C[3] - k[3];
+  C[4] = C[4] - k[4];
+  C[5] = C[5] ^ k[5];
+  C[6] = C[6] ^ k[6];
+  C[7] = C[7] - k[7];
+}
 
-  mid[2] = (2*C[2] + C[3]) % 256;
-  mid[3] = (C[2] + C[3]) % 256;
+void fourth_step(uint8_t C[]){
 
-  mid[4] = (2*C[4] + C[5]) % 256;
-  mid[5] = (C[4] + C[5]) % 256;
+  uint8_t * aux = malloc(sizeof(uint8_t)*(8));
 
-  mid[6] = (2*C[6] + C[7]) % 256;
-  mid[7] = (C[6] + C[7]) % 256;
+  /* first block */
+  aux[0] = (2*C[0] + C[1]) % 256;
+  aux[1] = (C[0] + C[1]) % 256;
+  aux[2] = (2*C[2] + C[3]) % 256;
+  aux[3] = (C[2] + C[3]) % 256;
+  aux[4] = (2*C[4] + C[5]) % 256;
+  aux[5] = (C[4] + C[5]) % 256;
+  aux[6] = (2*C[6] + C[7]) % 256;
+  aux[7] = (C[6] + C[7]) % 256;
 
-  /*Quarto - parte 2 */
-  C[0] = (2*mid[0] + mid[2]) % 256;
-  C[1] = (mid[0] + mid[2]) % 256;
+  /*second block*/
+  C[0] = (2*aux[0] + aux[2]) % 256;
+  C[1] = (aux[0] + aux[2]) % 256;
+  C[2] = (2*aux[4] + aux[6]) % 256;
+  C[3] = (aux[4] + aux[6]) % 256;
+  C[4] = (2*aux[1] + aux[3]) % 256;
+  C[5] = (aux[1] + aux[3]) % 256;
+  C[6] = (2*aux[5] + aux[7]) % 256;
+  C[7] = (aux[5] + aux[7]) % 256;
 
-  C[2] = (2*mid[4] + mid[6]) % 256;
-  C[3] = (mid[4] + mid[6]) % 256;
+  /* third_block */
+  aux[0] = (2*C[0] + C[2]) % 256;
+  aux[1] = (C[0] + C[2]) % 256;
+  aux[2] = (2*C[4] + C[6]) % 256;
+  aux[3] = (C[4] + C[6]) % 256;
+  aux[4] = (2*C[1] + C[3]) % 256;
+  aux[5] = (C[1] + C[3]) % 256;
+  aux[6] = (2*C[5] + C[7]) % 256;
+  aux[7] = (C[5] + C[7]) % 256;
 
-  C[4] = (2*mid[1] + mid[3]) % 256;
-  C[5] = (mid[1] + mid[3]) % 256;
+  int i;
+  for (i=0; i<8; i++) C[i] = aux[i];
+  free(aux);
 
-  C[6] = (2*mid[5] + mid[7]) % 256;
-  C[7] = (mid[5] + mid[7]) % 256;
-
-  /*Quarto - parte 3 */
-  mid[0] = (2*C[0] + C[2]) % 256;
-  mid[1] = (C[0] + C[2]) % 256;
-
-  mid[2] = (2*C[4] + C[6]) % 256;
-  mid[3] = (C[4] + C[6]) % 256;
-
-  mid[4] = (2*C[1] + C[3]) % 256;
-  mid[5] = (C[1] + C[3]) % 256;
-
-  mid[6] = (2*C[5] + C[7]) % 256;
-  mid[7] = (C[5] + C[7]) % 256;
-
-  printf("Parte 4: \n");
-  for (i=0;i<8;i++){
-    printf("%02"PRIx8 " ", mid[i]);
+  if (debug){
+    printf("Parte 4: ");
+    for (i=0;i<8;i++){
+      printf("%02"PRIx8 " ", C[i]);
+    }
+    printf("\n");
   }
-  printf("\n");
+}
+
+void Alg_K128(uint64_t keys[], byte_t file_bytes[]){
+  int i, r, R = 12;
+  uint64_t key, C[8];
+
+/* DEBUG STUFF NOT CURRENTLY BEING USED
+  FILE * arquivo;
+  arquivo = fopen("output_k128", "a+");
+  fputs ("key_main ",arquivo);
+  for (i=0;i<16;i++) fprintf(arquivo," %c  ",chave_k[i]);
+  fputs ("\nkey_hexa ",arquivo);
+  for (i=0;i<tam+1;i++) fprintf(arquivo,"k[%02d] = %" PRIx64 "\n", i, k[i]);
+  fclose(arquivo);
+*/
+
+  /* Cada bloco precisa passar por 12 rouds! */
+  /* Iterações: 12 rounds */
+  /* for (r=1;r<=R;r++) iteration(r, keys, (file_bytes+(8*i))); */
 
   /* Transformação final */
+/*
   C[0] = mid[0] ^ k3[0];
   C[1] = mid[1] + k3[1];
   C[2] = mid[2] + k3[2];
@@ -378,12 +403,50 @@ uint8_t * iteration (int r, uint64_t keys[], byte_t file_bytes[]){
     printf("%02"PRIx8 " ", C[i]);
   }
   printf("\n");
+*/
 
+  /* Testing an iteration */
+  uint8_t test[] = { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x43, 0x48, 0x3e, 0xb1, 0x8d, 0x5a, 0xdf, 0x93 };
+  uint8_t result = iteration(1, keys, test+8);
+
+  /* Must test a decript-iteration */
+}
+
+/* Duvida: Deveria ser feito diretamente em file_bytes? */
+uint8_t * iteration (int r, uint64_t keys[], byte_t file_bytes[]){
+  uint8_t * B = malloc(sizeof(uint8_t)*(8));
+  uint8_t * k1 = number_to_array(keys[(2*r - 1)]);
+  uint8_t * k2 = number_to_array(keys[(2*r)]);
+
+  if (debug){
+    int i;
+    printf("\nDEBUG iteration: \n");
+    printf("\nk_1 blocks: \t");
+    for (i=0;i<8;i++){
+      printf("%02"PRIx8 " ", k1[i]);
+    }
+    printf("\nk_2 blocks: \t");
+    for (i=0;i<8;i++){
+      printf("%02"PRIx8 " ", k2[i]);
+    }
+    printf("\nB: \t\t");
+    for (i=0;i<8;i++){
+      printf("%02"PRIx8 " ", file_bytes[i]);
+    }
+    printf("\n\n");
+  }
+
+  /* etapas do algoritmo */
+  first_step(B, file_bytes, k1);
+  second_step(B);
+  third_step(B, k2);
+  fourth_step(B);
+
+  /* evitar leaks */
   free(k1);
   free(k2);
-  free(k3);
-  free(mid);
-  return C;
+
+  return B;
 }
 
 int get_mode(char ** argv){
@@ -424,23 +487,23 @@ long get_file_size(string file_name) {
     return file_size;
 }
 
-int identifica_entrada(char ** argv){
+int identifica_input(char ** argv){
   if (debug) printf("Pegue o arquivo: %s! \n", argv[3]);
   return 0;
 }
 
-int identifica_saida(char ** argv){
+int identifica_output(char ** argv){
   if (debug) printf("Jogue em: %s! \n", argv[5]);
   return 0;
 }
 
-string concat_passwd(string chave_k, string entrada){
+string concat_passwd(string chave_k, string input){
   int i;
   string dest;
   dest = malloc(sizeof(char)*(240+1));
   chave_k = malloc(sizeof(char)*(16+1));
-  strcpy(dest,entrada);
-  for (i=0; i<16; i++) strcat(dest, entrada);
+  strcpy(dest,input);
+  for (i=0; i<16; i++) strcat(dest, input);
   memcpy(chave_k,dest,16);
   chave_k[16] = 0;
   free(dest);
