@@ -19,6 +19,7 @@ typedef char * string;
 /* Functions */
 void        precalculate();
 void        alg_k128(uint64_t keys[], byte_t file_bytes[]);
+void        alg_k128_reverse(uint64_t keys[], byte_t file_bytes[]);
 
 void        alg_k128_first_step(uint8_t C[], uint8_t B[], uint8_t k[]);
 void        alg_k128_second_step(uint8_t C[]);
@@ -31,9 +32,9 @@ void        alg_k128_reverse_second_step(uint8_t C[]);
 void        alg_k128_reverse_third_step(uint8_t C[], uint8_t k[]);
 void        alg_k128_reverse_fourth_step(uint8_t C[]);
 void        alg_k128_reverse_final_transformation(uint8_t C[], uint8_t k[]);
+void        alg_k128_iteration (int r, uint64_t keys[], byte_t file_bytes[]);
+void        alg_k128_decript_iteration (int r, uint64_t keys[], byte_t file_bytes[]);
 
-void        iteration (int r, uint64_t keys[], byte_t file_bytes[]);
-void        decript_iteration (int r, uint64_t keys[], byte_t file_bytes[]);
 int         get_mode();
 string      concat_passwd(string chave_k, string input);
 uint8_t     mod257(int exp);
@@ -92,7 +93,10 @@ int main(int argc, char ** argv){
   printf("\nInput size = %ld \n", file_size);
 
   precalculate();
-  alg_k128(sub_k, file_bytes);
+  uint8_t test[] = { 0x43, 0x48, 0x3e, 0xb1, 0x8d, 0x5a, 0xdf, 0x93 };
+
+  alg_k128(sub_k, test);
+  alg_k128_reverse(sub_k, test);
 
   free(input);
   free(output);
@@ -266,12 +270,12 @@ void alg_k128_first_step(uint8_t C[], uint8_t B[], uint8_t k[]){ /* tested */
   C[6] = B[6] + k[6];
   C[7] = B[7] ^ k[7];
 
-  if (debug){
+  /*  if (debug){
     int i;
     printf("Parte 1: ");
     for (i=0;i<8;i++) printf("%02"PRIx8 " ", C[i]);
     printf("\n");
-  }
+  } */
 }
 
 void alg_k128_reverse_first_step(uint8_t C[], uint8_t B[], uint8_t k[]){ /* tested */
@@ -284,6 +288,7 @@ void alg_k128_reverse_first_step(uint8_t C[], uint8_t B[], uint8_t k[]){ /* test
   C[6] = B[6] - k[6];
   C[7] = B[7] ^ k[7];
 
+  /*
   if (debug){
     int i;
     printf("Parte 1: ");
@@ -291,7 +296,7 @@ void alg_k128_reverse_first_step(uint8_t C[], uint8_t B[], uint8_t k[]){ /* test
       printf("%02"PRIx8 " ", C[i]);
     }
     printf("\n");
-  }
+  }*/
 }
 
 void alg_k128_second_step(uint8_t C[]){/* tested */
@@ -304,12 +309,12 @@ void alg_k128_second_step(uint8_t C[]){/* tested */
   C[6] = logs[C[6]];
   C[7] = powers[C[7]];
 
-  if (debug){
+  /*if (debug){
     int i;
     printf("Parte 2: ");
     for (i=0;i<8;i++) printf("%02"PRIx8 " ", C[i]);
     printf("\n");
-  }
+  }*/
 }
 
 void alg_k128_reverse_second_step(uint8_t C[]){ /* tested */
@@ -322,14 +327,14 @@ void alg_k128_reverse_second_step(uint8_t C[]){ /* tested */
   C[6] = powers[C[6]];
   C[7] = logs[C[7]];
 
-  if (debug){
+  /*if (debug){
     int i;
     printf("Parte 2: ");
     for (i=0;i<8;i++){
       printf("%02"PRIx8 " ", C[i]);
     }
     printf("\n");
-  }
+  }*/
 }
 
 void alg_k128_third_step(uint8_t C[], uint8_t k[]){/* tested */
@@ -342,12 +347,12 @@ void alg_k128_third_step(uint8_t C[], uint8_t k[]){/* tested */
   C[6] = C[6] ^ k[6];
   C[7] = C[7] + k[7];
 
-  if (debug){
+  /*if (debug){
     int i;
     printf("Parte 3: ");
     for (i=0;i<8;i++) printf("%02"PRIx8 " ", C[i]);
     printf("\n");
-  }
+  }*/
 }
 
 void alg_k128_reverse_third_step(uint8_t C[], uint8_t k[]){
@@ -360,14 +365,14 @@ void alg_k128_reverse_third_step(uint8_t C[], uint8_t k[]){
   C[6] = C[6] ^ k[6];
   C[7] = C[7] - k[7];
 
-  if (debug){
+  /*if (debug){
     int i;
     printf("Parte 3: ");
     for (i=0;i<8;i++){
       printf("%02"PRIx8 " ", C[i]);
     }
     printf("\n");
-  }
+  }*/
 }
 
 void alg_k128_fourth_step(uint8_t C[]){
@@ -408,13 +413,13 @@ void alg_k128_fourth_step(uint8_t C[]){
   for (i=0; i<8; i++) C[i] = aux[i];
   free(aux);
 
-  if (debug){
+  /*if (debug){
     printf("Parte 4: ");
     for (i=0;i<8;i++){
       printf("%02"PRIx8 " ", C[i]);
     }
     printf("\n");
-  }
+  }*/
 }
 
 void alg_k128_reverse_fourth_step(uint8_t C[]){
@@ -453,13 +458,13 @@ void alg_k128_reverse_fourth_step(uint8_t C[]){
 
   free(aux);
 
-  if (debug){
+  /*if (debug){
     printf("Parte 4: ");
     for (i=0;i<8;i++){
       printf("%02"PRIx8 " ", C[i]);
     }
     printf("\n");
-  }
+  }*/
 }
 
 void alg_k128_final_transformation(uint8_t C[], uint8_t k[]){
@@ -484,40 +489,18 @@ void alg_k128_reverse_final_transformation(uint8_t C[], uint8_t k[]){
   C[7] = C[7] ^ k[7];
 }
 
-void alg_k128(uint64_t keys[], byte_t file_bytes[]){
-  int i, r, R = 12;
-
-  /* Testing iteration and decript_iteration */
-  uint8_t test[] = { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x43, 0x48, 0x3e, 0xb1, 0x8d, 0x5a, 0xdf, 0x93 };
-  uint8_t * final_key = number_to_array(keys[(2*R + 1)]);
-
-  /* Cada bloco precisa passar por 12 rounds! */
-  for (r=1;r<=R;r++) iteration(r, keys, test+8);
-
-  /* Depois é aplicada uma transformação final */
-  alg_k128_final_transformation(test+8, final_key);
-
-  /* Testando decript */
-  alg_k128_reverse_final_transformation(test+8, final_key);
-  for (r=R;r>=1;r--) decript_iteration(r, keys, test+8);
-
-  /*iteration(1, keys, test+8);
-  decript_iteration(1, keys, test+8);*/
-}
-
-/* Duvida: Problema em ser feito diretamente em file_bytes? */
-void iteration (int r, uint64_t keys[], byte_t file_bytes[]){
+void alg_k128_iteration (int r, uint64_t keys[], byte_t file_bytes[]){
   uint8_t * k1 = number_to_array(keys[(2*r - 1)]);
   uint8_t * k2 = number_to_array(keys[(2*r)]);
 
-  if (debug){
+  /*if (debug){
     int i;
     printf("\nDEBUG iteration number (%d): \n", r);
     printf("\nk_1 blocks: \t"); for (i=0;i<8;i++) printf("%02"PRIx8 " ", k1[i]);
     printf("\nk_2 blocks: \t"); for (i=0;i<8;i++) printf("%02"PRIx8 " ", k2[i]);
     printf("\nB: \t\t"); for (i=0;i<8;i++) printf("%02"PRIx8 " ", file_bytes[i]);
-    printf("\n\n");
-  }
+    printf("\n");
+  }*/
 
   /* etapas do algoritmo */
   alg_k128_first_step(file_bytes, file_bytes, k1);
@@ -530,18 +513,18 @@ void iteration (int r, uint64_t keys[], byte_t file_bytes[]){
   free(k2);
 }
 
-void decript_iteration (int r, uint64_t keys[], byte_t file_bytes[]){
+void alg_k128_decript_iteration (int r, uint64_t keys[], byte_t file_bytes[]){
   uint8_t * k1 = number_to_array(keys[(2*r - 1)]);
   uint8_t * k2 = number_to_array(keys[(2*r)]);
 
-  if (debug){
+  /*if (debug){
     int i;
-    printf("\nDEBUG decript_iteration number (%d): \n", r);
+    printf("\nDEBUG decript_iteration number (%d): ", r);
     printf("\nk_1 blocks: \t"); for (i=0;i<8;i++) printf("%02"PRIx8 " ", k1[i]);
     printf("\nk_2 blocks: \t"); for (i=0;i<8;i++) printf("%02"PRIx8 " ", k2[i]);
     printf("\nB: \t\t"); for (i=0;i<8;i++) printf("%02"PRIx8 " ", file_bytes[i]);
-    printf("\n\n");
-  }
+    printf("\n");
+  }*/
 
   /* etapas do algoritmo */
   alg_k128_reverse_fourth_step(file_bytes);
@@ -552,6 +535,52 @@ void decript_iteration (int r, uint64_t keys[], byte_t file_bytes[]){
   /* evitar leaks */
   free(k1);
   free(k2);
+}
+
+void alg_k128(uint64_t keys[], byte_t file_bytes[]){
+
+  int i, r, R = 12;
+  uint8_t * final_key = number_to_array(keys[(2*R + 1)]);
+  uint8_t CBC[8] = {1, 1, 1, 1, 1, 1, 1, 1};
+
+  printf("\n ANTES DE ENCRIPTAR (B): \t\t"); for (i=0;i<8;i++) printf("%02"PRIx8 " ", file_bytes[i]);
+
+  file_bytes[0] = file_bytes[0] ^ CBC[0];
+	file_bytes[1] = file_bytes[1] ^ CBC[1];
+	file_bytes[2] = file_bytes[2] ^ CBC[2];
+	file_bytes[3] = file_bytes[3] ^ CBC[3];
+	file_bytes[4] = file_bytes[4] ^ CBC[4];
+	file_bytes[5] = file_bytes[5] ^ CBC[5];
+	file_bytes[6] = file_bytes[6] ^ CBC[6];
+	file_bytes[7] = file_bytes[7] ^ CBC[7];
+
+  /* Cada bloco precisa passar por 12 rounds! */
+  for (r=1;r<=R;r++) alg_k128_iteration(r, keys, file_bytes);
+
+  /* Depois é aplicada uma transformação final */
+  alg_k128_final_transformation(file_bytes, final_key);
+}
+
+void alg_k128_reverse(uint64_t keys[], byte_t file_bytes[]){
+
+  int i, r, R = 12;
+  uint8_t * final_key = number_to_array(keys[(2*R + 1)]);
+  uint8_t CBC[8] = {1, 1, 1, 1, 1, 1, 1, 1};
+
+  alg_k128_reverse_final_transformation(file_bytes, final_key);
+  for (r=R;r>=1;r--) alg_k128_decript_iteration(r, keys, file_bytes);
+
+  file_bytes[0] = file_bytes[0] ^ CBC[0];
+	file_bytes[1] = file_bytes[1] ^ CBC[1];
+	file_bytes[2] = file_bytes[2] ^ CBC[2];
+	file_bytes[3] = file_bytes[3] ^ CBC[3];
+	file_bytes[4] = file_bytes[4] ^ CBC[4];
+	file_bytes[5] = file_bytes[5] ^ CBC[5];
+	file_bytes[6] = file_bytes[6] ^ CBC[6];
+	file_bytes[7] = file_bytes[7] ^ CBC[7];
+
+  printf("\n DEPOIS DE ENCRIPTAR (B): \t\t"); for (i=0;i<8;i++) printf("%02"PRIx8 " ", file_bytes[i]);
+
 }
 
 int get_mode(char ** argv){
