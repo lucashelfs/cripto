@@ -90,6 +90,7 @@ int main(int argc, char ** argv){
   file_bytes = malloc(file_size * sizeof (*file_bytes));
   read_file_to_array(input, file_bytes, file_size);
   printf("\nInput size = %ld \n", file_size);
+
   precalculate();
   alg_k128(sub_k, file_bytes);
 
@@ -108,13 +109,13 @@ void precalculate(){
       powers[aux] = mod257(aux);
       logs[powers[aux]] = (uint8_t) aux;
   }
-  /*if (debug) {
+  if (debug) {
     int i;
     FILE * arquivo;
     arquivo = fopen("./outputs/output_logs_potencias", "w+");
     for(i=0;i<256;i++) fprintf(arquivo, "exp: %3d \t y: %3d \tx: %3d \n", i, powers[i], logs[i]);
     fclose(arquivo);
-  }*/
+  }
 }
 
 void read_file_to_array(char file_name[], byte_t file_bytes[], long file_size) {
@@ -243,18 +244,12 @@ uint8_t mod257(int exp){
 
 void inverse_HT2(uint8_t C[], uint8_t aux[]){
   int i;
-  uint64_t a1, a2;
+  uint8_t a1, a2;
 
   for (i=0;i<8;i=i+2){
 
-    if (C[i] < C[i+1])  a1 = C[i] + 256;
-    else                a1 = C[i];
-
-    if (C[i+1] < a1)    a2 = C[i+1] + 256;
-    else                a2 = C[i+1];
-
-    a1 = a1 - C[i+1];
-    a2 = a2 - a1;
+    a1 = C[i] - C[i+1];
+    a2 = C[i+1] - a1;
 
     aux[i] = a1;
     aux[i+1] = a2;
@@ -492,16 +487,6 @@ void alg_k128_reverse_final_transformation(uint8_t C[], uint8_t k[]){
 void alg_k128(uint64_t keys[], byte_t file_bytes[]){
   int i, r, R = 12;
 
-/* DEBUG STUFF NOT CURRENTLY BEING USED
-  FILE * arquivo;
-  arquivo = fopen("./outputs/output_k128", "a+");
-  fputs ("key_main ",arquivo);
-  for (i=0;i<16;i++) fprintf(arquivo," %c  ",chave_k[i]);
-  fputs ("\nkey_hexa ",arquivo);
-  for (i=0;i<tam+1;i++) fprintf(arquivo,"k[%02d] = %" PRIx64 "\n", i, k[i]);
-  fclose(arquivo);
-*/
-
   /* Testing iteration and decript_iteration */
   uint8_t test[] = { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x43, 0x48, 0x3e, 0xb1, 0x8d, 0x5a, 0xdf, 0x93 };
   uint8_t * final_key = number_to_array(keys[(2*R + 1)]);
@@ -520,7 +505,7 @@ void alg_k128(uint64_t keys[], byte_t file_bytes[]){
   decript_iteration(1, keys, test+8);*/
 }
 
-/* Duvida: Deveria ser feito diretamente em file_bytes? */
+/* Duvida: Problema em ser feito diretamente em file_bytes? */
 void iteration (int r, uint64_t keys[], byte_t file_bytes[]){
   uint8_t * k1 = number_to_array(keys[(2*r - 1)]);
   uint8_t * k2 = number_to_array(keys[(2*r)]);
