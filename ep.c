@@ -18,6 +18,10 @@ typedef char * string;
 
 /* Functions */
 void        precalculate();
+
+void        f_k128_CBC(uint64_t keys[], byte_t file_bytes[], byte_t Yj[], int blocks);
+void        f_k128_CBC_reverse(uint64_t keys[], byte_t file_bytes[], byte_t Yj[], int blocks);
+
 void        alg_k128(uint64_t keys[], byte_t file_bytes[]);
 void        alg_k128_reverse(uint64_t keys[], byte_t file_bytes[]);
 
@@ -32,20 +36,21 @@ void        alg_k128_reverse_second_step(uint8_t C[]);
 void        alg_k128_reverse_third_step(uint8_t C[], uint8_t k[]);
 void        alg_k128_reverse_fourth_step(uint8_t C[]);
 void        alg_k128_reverse_final_transformation(uint8_t C[], uint8_t k[]);
-void        alg_k128_iteration (int r, uint64_t keys[], byte_t file_bytes[]);
-void        alg_k128_decript_iteration (int r, uint64_t keys[], byte_t file_bytes[]);
+void        alg_k128_iteration(int r, uint64_t keys[], byte_t file_bytes[]);
+void        alg_k128_decript_iteration(int r, uint64_t keys[], byte_t file_bytes[]);
 
 int         get_mode();
-string      concat_passwd(string chave_k, string input);
+void        concat_passwd(string chave_k, string input);
 uint8_t     mod257(int exp);
 uint64_t    key_to_int64(string key);
 uint64_t    shift_left(uint64_t n, unsigned int d);
 uint64_t    shift_right(uint64_t n, unsigned int d);
 uint64_t *  subkeys();
 
-/* check these */
-long get_file_size(char file_name[]);
-void read_file_to_array(char file_name[], byte_t file_bytes[], long file_size);
+/* check these here... */
+long        get_file_size(char file_name[]);
+void        read_file_to_array(char file_name[], byte_t file_bytes[], long file_size);
+void        write_array_to_file();
 
 /* efficience matters */
 uint8_t powers[256];
@@ -53,7 +58,7 @@ uint8_t logs[256];
 
 int main(int argc, char ** argv){
 
-  /* Dívida técnica: consertar intro  */
+  /* Dívida técnica: consertar intro e leitura de arquivos */
   int modo=0;
   long file_size;
   string senha, input, output;
@@ -78,32 +83,49 @@ int main(int argc, char ** argv){
     if (debug) printf("\nSenha=%s --> Bytes=%d", senha, (int)strlen(senha));
   }
 
-  /* Dívida técnica: Warning pelo método como fiz abaixo */
   string chave_k;
-  chave_k = concat_passwd(chave_k, senha);
-  if (debug) printf("\nSenha concat_passwd = %s \n", chave_k);
+  chave_k = malloc(sizeof(char)*(16+1));
+  concat_passwd(chave_k, senha);
+  /* if (debug) printf("\nSenha concat_passwd = %s \n", chave_k); */
 
   uint64_t * sub_k;
   sub_k = subkeys(chave_k);
 
   byte_t * file_bytes;
+
+  /* NUMERO DE BLOCKS PRA TER NO ARRAY */
   file_size = get_file_size(input);
-  file_bytes = malloc(file_size * sizeof (*file_bytes));
-  read_file_to_array(input, file_bytes, file_size);
+  int num_of_blocks;
+  if ((int) file_size % 64 == 0)  num_of_blocks = (int) (file_size / 64);
+  else                            num_of_blocks = (int) (file_size / 64) + 1;
+
+  printf("\nTemos: %d blocos de 64 bits. \n", num_of_blocks);
   printf("\nInput size = %ld \n", file_size);
 
+  file_bytes = malloc(file_size * sizeof (*file_bytes));
+  read_file_to_array(input, file_bytes, file_size);
+
   precalculate();
-  uint8_t test[] = { 0x43, 0x48, 0x3e, 0xb1, 0x8d, 0x5a, 0xdf, 0x93 };
 
-  alg_k128(sub_k, test);
-  alg_k128_reverse(sub_k, test);
+  /* Testing */
 
-  free(input);
-  free(output);
-  free(chave_k);
+  /* valor inicial do cbc */
+  uint8_t Yj[8] = {1, 1, 1, 1, 1, 1, 1, 1};
+  uint8_t Yj_r[8] = {1, 1, 1, 1, 1, 1, 1, 1};
+
+  f_k128_CBC(sub_k, file_bytes, Yj, num_of_blocks);
+  f_k128_CBC_reverse(sub_k, file_bytes, Yj_r, num_of_blocks);
+
+  /*
+    uint8_t test[] = { 0x43, 0x48, 0x3e, 0xb1, 0x8d, 0x5a, 0xdf, 0x93, 0x43, 0x48, 0x3e, 0xb1, 0x8d, 0x5a, 0xdf, 0x93, 0x43, 0x48, 0x3e, 0xb1, 0x8d, 0x5a, 0xdf, 0x93 };
+    f_k128(sub_k, test, Yj, 3);
+    f_k128_reverse(sub_k, test, Yj_r, 3);
+  */
+
   free(sub_k);
   free(file_bytes);
   /*fclose(arq_sai);*/
+  printf("\n");
   return 0;
 }
 
@@ -246,6 +268,17 @@ uint8_t mod257(int exp){
     return (((v*val) % MOD) * v) % MOD;
 }
 
+void concat_passwd(string chave_k, string input){
+  int i;
+  string dest;
+  dest = malloc(sizeof(char)*(240+1));
+  strcpy(dest,input);
+  for (i=0; i<16; i++) strcat(dest, input);
+  memcpy(chave_k,dest,16);
+  chave_k[16] = 0;
+  free(dest);
+}
+
 void inverse_HT2(uint8_t C[], uint8_t aux[]){
   int i;
   uint8_t a1, a2;
@@ -260,6 +293,7 @@ void inverse_HT2(uint8_t C[], uint8_t aux[]){
   }
 }
 
+/* Divida técnica: redefinir esse par de funções */
 void alg_k128_first_step(uint8_t C[], uint8_t B[], uint8_t k[]){ /* tested */
   C[0] = B[0] ^ k[0];
   C[1] = B[1] + k[1];
@@ -288,8 +322,7 @@ void alg_k128_reverse_first_step(uint8_t C[], uint8_t B[], uint8_t k[]){ /* test
   C[6] = B[6] - k[6];
   C[7] = B[7] ^ k[7];
 
-  /*
-  if (debug){
+  /* if (debug){
     int i;
     printf("Parte 1: ");
     for (i=0;i<8;i++){
@@ -489,7 +522,7 @@ void alg_k128_reverse_final_transformation(uint8_t C[], uint8_t k[]){
   C[7] = C[7] ^ k[7];
 }
 
-void alg_k128_iteration (int r, uint64_t keys[], byte_t file_bytes[]){
+void alg_k128_iteration(int r, uint64_t keys[], byte_t file_bytes[]){
   uint8_t * k1 = number_to_array(keys[(2*r - 1)]);
   uint8_t * k2 = number_to_array(keys[(2*r)]);
 
@@ -513,7 +546,7 @@ void alg_k128_iteration (int r, uint64_t keys[], byte_t file_bytes[]){
   free(k2);
 }
 
-void alg_k128_decript_iteration (int r, uint64_t keys[], byte_t file_bytes[]){
+void alg_k128_decript_iteration(int r, uint64_t keys[], byte_t file_bytes[]){
   uint8_t * k1 = number_to_array(keys[(2*r - 1)]);
   uint8_t * k2 = number_to_array(keys[(2*r)]);
 
@@ -537,22 +570,11 @@ void alg_k128_decript_iteration (int r, uint64_t keys[], byte_t file_bytes[]){
   free(k2);
 }
 
+/* recebe o começo de um bloco de bytes e itera nos 8 */
 void alg_k128(uint64_t keys[], byte_t file_bytes[]){
 
-  int i, r, R = 12;
+  int r, R = 12;
   uint8_t * final_key = number_to_array(keys[(2*R + 1)]);
-  uint8_t CBC[8] = {1, 1, 1, 1, 1, 1, 1, 1};
-
-  printf("\n ANTES DE ENCRIPTAR (B): \t\t"); for (i=0;i<8;i++) printf("%02"PRIx8 " ", file_bytes[i]);
-
-  file_bytes[0] = file_bytes[0] ^ CBC[0];
-	file_bytes[1] = file_bytes[1] ^ CBC[1];
-	file_bytes[2] = file_bytes[2] ^ CBC[2];
-	file_bytes[3] = file_bytes[3] ^ CBC[3];
-	file_bytes[4] = file_bytes[4] ^ CBC[4];
-	file_bytes[5] = file_bytes[5] ^ CBC[5];
-	file_bytes[6] = file_bytes[6] ^ CBC[6];
-	file_bytes[7] = file_bytes[7] ^ CBC[7];
 
   /* Cada bloco precisa passar por 12 rounds! */
   for (r=1;r<=R;r++) alg_k128_iteration(r, keys, file_bytes);
@@ -563,23 +585,142 @@ void alg_k128(uint64_t keys[], byte_t file_bytes[]){
 
 void alg_k128_reverse(uint64_t keys[], byte_t file_bytes[]){
 
-  int i, r, R = 12;
+  int r, R = 12;
   uint8_t * final_key = number_to_array(keys[(2*R + 1)]);
-  uint8_t CBC[8] = {1, 1, 1, 1, 1, 1, 1, 1};
 
   alg_k128_reverse_final_transformation(file_bytes, final_key);
   for (r=R;r>=1;r--) alg_k128_decript_iteration(r, keys, file_bytes);
+}
 
-  file_bytes[0] = file_bytes[0] ^ CBC[0];
-	file_bytes[1] = file_bytes[1] ^ CBC[1];
-	file_bytes[2] = file_bytes[2] ^ CBC[2];
-	file_bytes[3] = file_bytes[3] ^ CBC[3];
-	file_bytes[4] = file_bytes[4] ^ CBC[4];
-	file_bytes[5] = file_bytes[5] ^ CBC[5];
-	file_bytes[6] = file_bytes[6] ^ CBC[6];
-	file_bytes[7] = file_bytes[7] ^ CBC[7];
+void f_k128_CBC(uint64_t keys[], byte_t file_bytes[], byte_t Yj[], int blocks){
 
-  printf("\n DEPOIS DE ENCRIPTAR (B): \t\t"); for (i=0;i<8;i++) printf("%02"PRIx8 " ", file_bytes[i]);
+  /* file bytes    = Zj */
+  /* yj            = y j-1 */
+
+  int i;
+  printf("\n ANTES DE ENCRIPTAR (B): \t\t");
+  for (i=0;i<8*blocks;i++) printf("%02"PRIx8 " ", file_bytes[i]);
+
+  /*CBC */
+  i=0;
+
+  /************************************************ PRIMEIRO BLOCO DE 64 BITS */
+  /* primeiro byte */
+  file_bytes[i + 0] = file_bytes[i + 0] ^ Yj[0];
+	file_bytes[i + 1] = file_bytes[i + 1] ^ Yj[1];
+	file_bytes[i + 2] = file_bytes[i + 2] ^ Yj[2];
+	file_bytes[i + 3] = file_bytes[i + 3] ^ Yj[3];
+	file_bytes[i + 4] = file_bytes[i + 4] ^ Yj[4];
+	file_bytes[i + 5] = file_bytes[i + 5] ^ Yj[5];
+	file_bytes[i + 6] = file_bytes[i + 6] ^ Yj[6];
+	file_bytes[i + 7] = file_bytes[i + 7] ^ Yj[7];
+
+  /* aplica o fk */
+  alg_k128(keys, file_bytes);
+
+  /* atualiza o cbc com os primeiros 8 bytes criptografados */
+  Yj[0] = file_bytes[i+0];
+  Yj[1] = file_bytes[i+1];
+  Yj[2] = file_bytes[i+2];
+  Yj[3] = file_bytes[i+3];
+  Yj[4] = file_bytes[i+4];
+  Yj[5] = file_bytes[i+5];
+  Yj[6] = file_bytes[i+6];
+  Yj[7] = file_bytes[i+7];
+
+  /*********************************************** PRÒXIMOS BLOCOS DE 64 BITS */
+  for (i=8; i < blocks * 8; i=i+8){
+
+    /* faz o xor com cbc (bloco anterior) para o bloco i */
+    file_bytes[i + 0] = file_bytes[i + 0] ^ Yj[0];
+    file_bytes[i + 1] = file_bytes[i + 1] ^ Yj[1];
+    file_bytes[i + 2] = file_bytes[i + 2] ^ Yj[2];
+    file_bytes[i + 3] = file_bytes[i + 3] ^ Yj[3];
+    file_bytes[i + 4] = file_bytes[i + 4] ^ Yj[4];
+    file_bytes[i + 5] = file_bytes[i + 5] ^ Yj[5];
+    file_bytes[i + 6] = file_bytes[i + 6] ^ Yj[6];
+    file_bytes[i + 7] = file_bytes[i + 7] ^ Yj[7];
+
+    /* aplica o fk */
+    alg_k128(keys, file_bytes+i);
+
+    /* atualiza o cbc com os 8 bytes do bloco i criptografados */
+  	Yj[0] = file_bytes[i+0];
+  	Yj[1] = file_bytes[i+1];
+  	Yj[2] = file_bytes[i+2];
+  	Yj[3] = file_bytes[i+3];
+  	Yj[4] = file_bytes[i+4];
+  	Yj[5] = file_bytes[i+5];
+  	Yj[6] = file_bytes[i+6];
+  	Yj[7] = file_bytes[i+7];
+  }
+
+  printf("\n Depois de encriptar (B): \t\t");
+  for (i=0;i<8*blocks;i++) printf("%02"PRIx8 " ", file_bytes[i]);
+}
+
+void f_k128_CBC_reverse(uint64_t keys[], byte_t file_bytes[], byte_t Yj[], int blocks){
+
+  int i, j;
+  uint8_t CBC_aux[8];
+
+  /* Guardando o bloco encriptado para aplicar o cbc no próximo bloco */
+  for (i = 0; i < 8; ++i) CBC_aux[i] = file_bytes[i];
+
+  i = 0;
+
+  alg_k128_reverse(keys, file_bytes + i);
+
+  file_bytes[i+0] = file_bytes[i+0] ^ Yj[0];
+  file_bytes[i+1] = file_bytes[i+1] ^ Yj[1];
+  file_bytes[i+2] = file_bytes[i+2] ^ Yj[2];
+  file_bytes[i+3] = file_bytes[i+3] ^ Yj[3];
+  file_bytes[i+4] = file_bytes[i+4] ^ Yj[4];
+  file_bytes[i+5] = file_bytes[i+5] ^ Yj[5];
+  file_bytes[i+6] = file_bytes[i+6] ^ Yj[6];
+  file_bytes[i+7] = file_bytes[i+7] ^ Yj[7];
+
+  Yj[0] = CBC_aux[0];
+  Yj[1] = CBC_aux[1];
+  Yj[2] = CBC_aux[2];
+  Yj[3] = CBC_aux[3];
+  Yj[4] = CBC_aux[4];
+  Yj[5] = CBC_aux[5];
+  Yj[6] = CBC_aux[6];
+  Yj[7] = CBC_aux[7];
+
+  for (i=8; i < blocks * 8; i=i+8) {
+
+    /* guarda o bloco i para o passo i+1 */
+    for (j = 0; j < 8; j++)
+      CBC_aux[j] = file_bytes[i+j];
+
+    /* inverte o bloco i */
+    alg_k128_reverse(keys, file_bytes+i);
+
+    /* inversa CBC */
+    file_bytes[i+0] = file_bytes[i+0] ^ Yj[0];
+    file_bytes[i+1] = file_bytes[i+1] ^ Yj[1];
+    file_bytes[i+2] = file_bytes[i+2] ^ Yj[2];
+    file_bytes[i+3] = file_bytes[i+3] ^ Yj[3];
+    file_bytes[i+4] = file_bytes[i+4] ^ Yj[4];
+    file_bytes[i+5] = file_bytes[i+5] ^ Yj[5];
+    file_bytes[i+6] = file_bytes[i+6] ^ Yj[6];
+    file_bytes[i+7] = file_bytes[i+7] ^ Yj[7];
+
+  	/* atualiza CBC */
+  	Yj[0] = CBC_aux[0];
+  	Yj[1] = CBC_aux[1];
+  	Yj[2] = CBC_aux[2];
+  	Yj[3] = CBC_aux[3];
+  	Yj[4] = CBC_aux[4];
+  	Yj[5] = CBC_aux[5];
+  	Yj[6] = CBC_aux[6];
+  	Yj[7] = CBC_aux[7];
+  }
+
+  printf("\n DEPOIS DE DECRIPTAR (B): \t\t");
+  for (i=0;i<8*blocks;i++) printf("%02"PRIx8 " ", file_bytes[i]);
 
 }
 
@@ -629,17 +770,4 @@ int identifica_input(char ** argv){
 int identifica_output(char ** argv){
   if (debug) printf("Jogue em: %s! \n", argv[5]);
   return 0;
-}
-
-string concat_passwd(string chave_k, string input){
-  int i;
-  string dest;
-  dest = malloc(sizeof(char)*(240+1));
-  chave_k = malloc(sizeof(char)*(16+1));
-  strcpy(dest,input);
-  for (i=0; i<16; i++) strcat(dest, input);
-  memcpy(chave_k,dest,16);
-  chave_k[16] = 0;
-  free(dest);
-  return chave_k;
 }
