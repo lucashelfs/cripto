@@ -50,7 +50,7 @@ uint64_t *  subkeys();
 /* check these here... */
 long        get_file_size(char file_name[]);
 void        read_file_to_array(char file_name[], byte_t file_bytes[], long file_size);
-void        write_array_to_file();
+void        write_array_to_file(char file_name[], byte_t file_bytes[], long file_size);
 
 /* efficience matters */
 uint8_t powers[256];
@@ -62,11 +62,6 @@ int main(int argc, char ** argv){
   int modo=0;
   long file_size;
   string senha, input, output;
-
-  /*
-  FILE * arq_sai;
-  arq_sai = fopen(output, "a+");
-  */
 
   modo = get_mode(argv);
   input = malloc(sizeof(char)*(strlen(argv[3]) + 1));
@@ -93,7 +88,7 @@ int main(int argc, char ** argv){
 
   byte_t * file_bytes;
 
-  /* NUMERO DE BLOCKS PRA TER NO ARRAY */
+  /* numero de blocks de 64 bits */
   file_size = get_file_size(input);
   int num_of_blocks;
   if ((int) file_size % 64 == 0)  num_of_blocks = (int) (file_size / 64);
@@ -105,9 +100,8 @@ int main(int argc, char ** argv){
   file_bytes = malloc(file_size * sizeof (*file_bytes));
   read_file_to_array(input, file_bytes, file_size);
 
+  /* calcular valores dos logs */
   precalculate();
-
-  /* Testing */
 
   /* valor inicial do cbc */
   uint8_t Yj[8] = {1, 1, 1, 1, 1, 1, 1, 1};
@@ -122,9 +116,10 @@ int main(int argc, char ** argv){
     f_k128_reverse(sub_k, test, Yj_r, 3);
   */
 
+  write_array_to_file(output, file_bytes, file_size);
+
   free(sub_k);
   free(file_bytes);
-  /*fclose(arq_sai);*/
   printf("\n");
   return 0;
 }
@@ -144,7 +139,7 @@ void precalculate(){
   }
 }
 
-void read_file_to_array(char file_name[], byte_t file_bytes[], long file_size) {
+void read_file_to_array(char file_name[], byte_t file_bytes[], long file_size){
     FILE *p_input_file;
     p_input_file = fopen(file_name, "rb");
     if (p_input_file == NULL) {
@@ -155,7 +150,21 @@ void read_file_to_array(char file_name[], byte_t file_bytes[], long file_size) {
     fclose(p_input_file);
 }
 
-uint64_t key_to_int64(string key) {
+void write_array_to_file(char file_name[], byte_t file_bytes[], long file_size){
+  int i;
+  FILE * p_output_file;
+  p_output_file = fopen(file_name, "r+");
+
+  if (p_output_file == NULL) {
+      printf("Output file %s not found.\n", file_name);
+      exit(1);
+  }
+
+  fwrite(file_bytes, sizeof(*file_bytes), file_size, p_output_file);
+  fclose(p_output_file);
+}
+
+uint64_t key_to_int64(string key){
   int i;
   uint64_t num = 0;
   num = (uint8_t)key[0];
