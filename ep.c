@@ -55,6 +55,9 @@ void        fill_with_ones(byte_t file_bytes[], int begin, long end);
 void        append_size_to_end_of_file(byte_t file_bytes[], int blocks, long file_size);
 long        get_size_from_end_of_file(byte_t file_bytes[], int blocks);
 
+void encrypt(char input_file[], char output_file[], char password[], uint64_t subkeys[]);
+void decrypt(char input_file[], char output_file[], char password[], uint64_t subkeys[]);
+
 /* efficience matters */
 uint8_t powers[256];
 uint8_t logs[256];
@@ -88,11 +91,29 @@ int main(int argc, char ** argv){
   uint64_t * sub_k;
   sub_k = subkeys(chave_k);
 
+
+  /* calcular valores dos logs */
+  precalculate();
+
+  if (modo == 1)
+    encrypt(input, output, senha, sub_k);
+
+  free(sub_k);
+  printf("\n");
+  return 0;
+}
+
+void encrypt(char input_file[], char output_file[], char password[], uint64_t subkeys[]){
+
+  int num_of_blocks;
+  long file_size;
   byte_t * file_bytes;
 
+  uint8_t CBC[8] = {1, 1, 1, 1, 1, 1, 1, 1};
+
   /* numero de blocks de 64 bits */
-  file_size = get_file_size(input);
-  int num_of_blocks;
+  file_size = get_file_size(input_file);
+
   if ((int) file_size % 64 == 0)  num_of_blocks = (int) (file_size / 64);
   else                            num_of_blocks = (int) (file_size / 64) + 1;
 
@@ -103,7 +124,54 @@ int main(int argc, char ** argv){
   file_bytes = malloc((num_of_blocks * 64 + 4) * sizeof (*file_bytes));
 
   /* ler para o vetor de informações */
-  read_file_to_array(input, file_bytes, file_size);
+  read_file_to_array(input_file, file_bytes, file_size);
+
+  /* completar com 1s de i até (num_of_blocks * 64) se necessário */
+  printf("Colocar 1's de %d até %d. \n", file_size, (num_of_blocks*64));
+  fill_with_ones(file_bytes, file_size, (num_of_blocks * 64));
+
+  /* colocar o tamanho do arquivo no final */
+  append_size_to_end_of_file(file_bytes, num_of_blocks, file_size);
+
+  int i;
+  printf("\n CHEIO DE UNS: \t\t");
+  for (i=file_size-4;i<(num_of_blocks*64+4);i++) printf("%02"PRIx8 " ", file_bytes[i]);
+
+  /* encrypt */
+  /* TODO: fix the number of blocks */
+  f_k128_CBC(subkeys, file_bytes, CBC, num_of_blocks);
+
+  /* write output */
+  write_array_to_file(output_file, file_bytes, (num_of_blocks * 64 + 4)); /* this thing works? */
+
+  /* avoid leaks */
+  free(file_bytes);
+}
+
+void decrypt(char input_file[], char output_file[], char password[], uint64_t subkeys[]){
+
+  /* TODO: write the inverse logic for getting the number */
+
+  int num_of_blocks;
+  long file_size;
+  byte_t * file_bytes;
+
+  uint8_t CBC[8] = {1, 1, 1, 1, 1, 1, 1, 1};
+
+  /* numero de blocks de 64 bits */
+  file_size = get_file_size(input_file);
+
+  if ((int) file_size % 64 == 0)  num_of_blocks = (int) (file_size / 64);
+  else                            num_of_blocks = (int) (file_size / 64) + 1;
+
+  printf("\nTemos: %d blocos de 64 bits. \n", num_of_blocks);
+  printf("\nInput size = %ld \n", file_size);
+
+  /* alocar o tamanho determinado */
+  file_bytes = malloc((num_of_blocks * 64 + 4) * sizeof (*file_bytes));
+
+  /* ler o aqruivo criptografado para o vetor */
+  read_file_to_array(input_file, file_bytes, file_size);
 
   /* completar com 1s de i até (num_of_blocks * 64) se necessário */
   printf("Colocar 1's de %d até %d. \n", file_size, (num_of_blocks*64));
@@ -116,48 +184,25 @@ int main(int argc, char ** argv){
   /* colocar o tamanho do arquivo no final */
   append_size_to_end_of_file(file_bytes, num_of_blocks, file_size);
 
-  /*printf("\nTAMANHO NO FINAL: \t\t");
-  for (i=num_of_blocks*64;i<(num_of_blocks*64 + 4);i++) printf("%02"PRIx8 " ", file_bytes[i]);*/
+  /* decrypt */
+  f_k128_CBC_reverse(subkeys, file_bytes, CBC, num_of_blocks);
 
-  /* tamanho do arquivo sempre será == x * 64 + 4 */
+  /* write output */
+  write_array_to_file(output_file, file_bytes, (num_of_blocks * 64 + 4)); /* this thing works? */
 
-  /* pode ver o tamanho do aquivo antes, dividir por 64 e já saberá o numero de blocos */
-
-  /* após isso pode obter o tamanho do arquivo original e prosseguir */
-  long obtained_size = get_size_from_end_of_file(file_bytes, num_of_blocks);
-  printf("Tamanho obtido: %d \n", obtained_size);
-
-
-  /* calcular valores dos logs */
-  precalculate();
-
-  /* valor inicial do cbc */
-  uint8_t Yj[8] = {1, 1, 1, 1, 1, 1, 1, 1};
-  uint8_t Yj_r[8] = {1, 1, 1, 1, 1, 1, 1, 1};
-
-  /*f_k128_CBC(sub_k, file_bytes, Yj, num_of_blocks);
-  f_k128_CBC_reverse(sub_k, file_bytes, Yj_r, num_of_blocks);*/
-
-  /*
-    uint8_t test[] = { 0x43, 0x48, 0x3e, 0xb1, 0x8d, 0x5a, 0xdf, 0x93, 0x43, 0x48, 0x3e, 0xb1, 0x8d, 0x5a, 0xdf, 0x93, 0x43, 0x48, 0x3e, 0xb1, 0x8d, 0x5a, 0xdf, 0x93 };
-    f_k128(sub_k, test, Yj, 3);
-    f_k128_reverse(sub_k, test, Yj_r, 3);
-  */
-
-  write_array_to_file(output, file_bytes, (num_of_blocks * 64 + 4)); /* this thing works? */
-
-  free(sub_k);
+  /* avoid leaks */
   free(file_bytes);
-  printf("\n");
-  return 0;
 }
 
 void precalculate(){
+
   int aux;
-    for(aux=0;aux<256;aux++){
+
+  for(aux=0;aux<256;aux++){
       powers[aux] = mod257(aux);
       logs[powers[aux]] = (uint8_t) aux;
   }
+
   if (debug) {
     int i;
     FILE * arquivo;
@@ -165,21 +210,25 @@ void precalculate(){
     for(i=0;i<256;i++) fprintf(arquivo, "exp: %3d \t y: %3d \tx: %3d \n", i, powers[i], logs[i]);
     fclose(arquivo);
   }
+
 }
 
 void read_file_to_array(char file_name[], byte_t file_bytes[], long file_size){
+
     FILE *p_input_file;
     p_input_file = fopen(file_name, "rb");
+
     if (p_input_file == NULL) {
         printf("Input file %s not found.\n", file_name);
         exit(1);
     }
+
     fread(file_bytes, sizeof(*file_bytes), file_size, p_input_file);
     fclose(p_input_file);
 }
 
 void write_array_to_file(char file_name[], byte_t file_bytes[], long file_size){
-  int i;
+
   FILE * p_output_file;
   p_output_file = fopen(file_name, "r+");
 
@@ -194,10 +243,14 @@ void write_array_to_file(char file_name[], byte_t file_bytes[], long file_size){
 
 void fill_with_ones(byte_t file_bytes[], int begin, long end){
   int i;
-  for (i=begin;i<end;i++) file_bytes[i] = 1;
+  for (i=begin;i<end;i++) file_bytes[i] = 255;
 }
 
 void append_size_to_end_of_file(byte_t file_bytes[], int blocks, long file_size){
+
+  /*TODO: add a whole 64 bits block to file bytes, to work with bigger numers */
+  /*TODO: fix the logic and rewrite get_size_from_end_of_file  */
+
   int end = blocks * 64;
   file_bytes[end + 0] = (byte_t)((file_size & 0xFF000000) >> 24 );
   file_bytes[end + 1] = (byte_t)((file_size & 0x00FF0000) >> 16 );
@@ -658,8 +711,6 @@ void f_k128_CBC(uint64_t keys[], byte_t file_bytes[], byte_t Yj[], int blocks){
   /* yj            = y j-1 */
 
   int i;
-  printf("\n ANTES DE ENCRIPTAR (B): \t\t");
-  for (i=0;i<8*blocks;i++) printf("%02"PRIx8 " ", file_bytes[i]);
 
   /*CBC */
   i=0;
@@ -715,8 +766,6 @@ void f_k128_CBC(uint64_t keys[], byte_t file_bytes[], byte_t Yj[], int blocks){
   	Yj[7] = file_bytes[i+7];
   }
 
-  printf("\n Depois de encriptar (B): \t\t");
-  for (i=0;i<8*blocks;i++) printf("%02"PRIx8 " ", file_bytes[i]);
 }
 
 void f_k128_CBC_reverse(uint64_t keys[], byte_t file_bytes[], byte_t Yj[], int blocks){
