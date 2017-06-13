@@ -51,6 +51,9 @@ uint64_t *  subkeys();
 long        get_file_size(char file_name[]);
 void        read_file_to_array(char file_name[], byte_t file_bytes[], long file_size);
 void        write_array_to_file(char file_name[], byte_t file_bytes[], long file_size);
+void        fill_with_ones(byte_t file_bytes[], int begin, long end);
+void        append_size_to_end_of_file(byte_t file_bytes[], int blocks, long file_size);
+long        get_size_from_end_of_file(byte_t file_bytes[], int blocks);
 
 /* efficience matters */
 uint8_t powers[256];
@@ -81,7 +84,6 @@ int main(int argc, char ** argv){
   string chave_k;
   chave_k = malloc(sizeof(char)*(16+1));
   concat_passwd(chave_k, senha);
-  /* if (debug) printf("\nSenha concat_passwd = %s \n", chave_k); */
 
   uint64_t * sub_k;
   sub_k = subkeys(chave_k);
@@ -97,8 +99,34 @@ int main(int argc, char ** argv){
   printf("\nTemos: %d blocos de 64 bits. \n", num_of_blocks);
   printf("\nInput size = %ld \n", file_size);
 
-  file_bytes = malloc(file_size * sizeof (*file_bytes));
+  /* alocar o tamanho determinado */
+  file_bytes = malloc((num_of_blocks * 64 + 4) * sizeof (*file_bytes));
+
+  /* ler para o vetor de informações */
   read_file_to_array(input, file_bytes, file_size);
+
+  /* completar com 1s de i até (num_of_blocks * 64) se necessário */
+  printf("Colocar 1's de %d até %d. \n", file_size, (num_of_blocks*64));
+  fill_with_ones(file_bytes, file_size, (num_of_blocks * 64));
+
+  int i;
+  /*printf("\n CHEIO DE UNS: \t\t");
+  for (i=0;i<(num_of_blocks*64);i++) printf("%02"PRIx8 " ", file_bytes[i]);*/
+
+  /* colocar o tamanho do arquivo no final */
+  append_size_to_end_of_file(file_bytes, num_of_blocks, file_size);
+
+  /*printf("\nTAMANHO NO FINAL: \t\t");
+  for (i=num_of_blocks*64;i<(num_of_blocks*64 + 4);i++) printf("%02"PRIx8 " ", file_bytes[i]);*/
+
+  /* tamanho do arquivo sempre será == x * 64 + 4 */
+
+  /* pode ver o tamanho do aquivo antes, dividir por 64 e já saberá o numero de blocos */
+
+  /* após isso pode obter o tamanho do arquivo original e prosseguir */
+  long obtained_size = get_size_from_end_of_file(file_bytes, num_of_blocks);
+  printf("Tamanho obtido: %d \n", obtained_size);
+
 
   /* calcular valores dos logs */
   precalculate();
@@ -107,8 +135,8 @@ int main(int argc, char ** argv){
   uint8_t Yj[8] = {1, 1, 1, 1, 1, 1, 1, 1};
   uint8_t Yj_r[8] = {1, 1, 1, 1, 1, 1, 1, 1};
 
-  f_k128_CBC(sub_k, file_bytes, Yj, num_of_blocks);
-  f_k128_CBC_reverse(sub_k, file_bytes, Yj_r, num_of_blocks);
+  /*f_k128_CBC(sub_k, file_bytes, Yj, num_of_blocks);
+  f_k128_CBC_reverse(sub_k, file_bytes, Yj_r, num_of_blocks);*/
 
   /*
     uint8_t test[] = { 0x43, 0x48, 0x3e, 0xb1, 0x8d, 0x5a, 0xdf, 0x93, 0x43, 0x48, 0x3e, 0xb1, 0x8d, 0x5a, 0xdf, 0x93, 0x43, 0x48, 0x3e, 0xb1, 0x8d, 0x5a, 0xdf, 0x93 };
@@ -116,7 +144,7 @@ int main(int argc, char ** argv){
     f_k128_reverse(sub_k, test, Yj_r, 3);
   */
 
-  write_array_to_file(output, file_bytes, file_size);
+  write_array_to_file(output, file_bytes, (num_of_blocks * 64 + 4)); /* this thing works? */
 
   free(sub_k);
   free(file_bytes);
@@ -162,6 +190,29 @@ void write_array_to_file(char file_name[], byte_t file_bytes[], long file_size){
 
   fwrite(file_bytes, sizeof(*file_bytes), file_size, p_output_file);
   fclose(p_output_file);
+}
+
+void fill_with_ones(byte_t file_bytes[], int begin, long end){
+  int i;
+  for (i=begin;i<end;i++) file_bytes[i] = 1;
+}
+
+void append_size_to_end_of_file(byte_t file_bytes[], int blocks, long file_size){
+  int end = blocks * 64;
+  file_bytes[end + 0] = (byte_t)((file_size & 0xFF000000) >> 24 );
+  file_bytes[end + 1] = (byte_t)((file_size & 0x00FF0000) >> 16 );
+  file_bytes[end + 2] = (byte_t)((file_size & 0x0000FF00) >> 8 );
+  file_bytes[end + 3] = (byte_t)((file_size & 0X000000FF));
+}
+
+long get_size_from_end_of_file(byte_t file_bytes[], int blocks){
+  int end = blocks * 64;
+  long num=0;
+  num  = ((unsigned int) file_bytes[end + 0]) << 24;
+  num |= ((unsigned int) file_bytes[end + 1]) << 16;
+  num |= ((unsigned int) file_bytes[end + 2]) << 8;
+  num |= ((unsigned int) file_bytes[end + 3]);
+  return num;
 }
 
 uint64_t key_to_int64(string key){
