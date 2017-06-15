@@ -230,6 +230,8 @@ void hamming(char input_file[], char password[], uint64_t subkeys[]){
   num_of_blocks--;
   float H[num_of_blocks];
 
+  for(i=0;i<num_of_blocks;i++) H[i] = 0;
+
   /* encrypt */
   f_k128_CBC(subkeys, file_bytes, CBC, num_of_blocks);
 
