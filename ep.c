@@ -57,6 +57,10 @@ long        get_size_from_end_of_file(byte_t file_bytes[], int blocks);
 
 void encrypt(char input_file[], char output_file[], char password[], uint64_t subkeys[]);
 void decrypt(char input_file[], char output_file[], char password[], uint64_t subkeys[]);
+void hamming(char input_file[], char password[], uint64_t subkeys[]);
+int hamming_distance(byte_t vetentra[], byte_t vetalter[], long j);
+int countHammDist(uint8_t n, uint8_t m);
+void toggle(byte_t file_bytes[], int index_of_bit);
 
 /* efficience matters */
 uint8_t powers[256];
@@ -93,13 +97,27 @@ int main(int argc, char ** argv){
   /* calcular valores dos logs */
   precalculate();
 
-  if (modo == 1)
-    encrypt(input, output, senha, sub_k);
+  printf("\nInput = %s \n", input);
 
-  if (modo == 2)
-    decrypt(input, output, senha, sub_k);
+  if (modo == 1) encrypt(input, output, senha, sub_k);
+  else if (modo == 2) decrypt(input, output, senha, sub_k);
+  else if (modo == 3) hamming(input, senha, sub_k);
+
+
+  /*uint8_t CBC_encrypt[8] = {0, 0, 0, 0, 0, 0, 0, 0};
+  uint8_t CBC_decrypt[8] = {0, 0, 0, 0, 0, 0, 0, 0};
+
+  toggle(CBC_decrypt, 1);
+  toggle(CBC_decrypt, 2);
+  int dist = hamming_distance(CBC_encrypt, CBC_decrypt, 0);
+  printf("\nDistancia de hamming = %d \n", dist);
+
+  toggle(CBC_decrypt, 1);
+  dist = hamming_distance(CBC_encrypt, CBC_decrypt, 0);
+  printf("\nDistancia de hamming = %d \n", dist);*/
 
   free(sub_k);
+  free(chave_k);
   printf("\n");
   return 0;
 }
@@ -119,7 +137,7 @@ void encrypt(char input_file[], char output_file[], char password[], uint64_t su
   else                            num_of_blocks = (int) (file_size / 8) + 1;
 
   printf("\nTemos: %d blocos de 8 bytes. \n", num_of_blocks);
-  printf("\nInput size = %ld \n", file_size);
+  printf("\nInput size (em bytes) = %ld \n", file_size);
 
   /* alocar o tamanho determinado de bytes*/
   num_of_blocks = num_of_blocks + 1;
@@ -178,6 +196,140 @@ void decrypt(char input_file[], char output_file[], char password[], uint64_t su
 
   /* avoid leaks */
   free(file_bytes);
+}
+
+void hamming(char input_file[], char password[], uint64_t subkeys[]){
+
+  int i, num_of_blocks;
+  long file_size;
+  byte_t * file_bytes;
+  byte_t * file_bytes_changed;
+
+  /* Dívida técnica: estou alterando em funções os valores daqui, poderia fazer de outro jeito */
+  uint8_t CBC[8] = {1, 1, 1, 1, 1, 1, 1, 1};
+
+  /* numero de bytes */
+  file_size = get_file_size(input_file);
+
+  if ((int) file_size % 8 == 0)  num_of_blocks = (int) (file_size / 8);
+  else                           num_of_blocks = (int) (file_size / 8) + 1;
+
+  printf("\nTemos: %d blocos de 8 bytes. \n", num_of_blocks);
+  printf("\nInput size (em bytes) = %ld \n", file_size);
+
+  /* alocar o tamanho determinado de bytes ALOCANDO UM BLOCO A MAIS */
+  num_of_blocks = num_of_blocks + 1;
+
+  /* alocar e ler para o vetor com o arquivo e um para ser alterado */
+  file_bytes = malloc((num_of_blocks * 8 ) * sizeof (*file_bytes));
+  file_bytes_changed = malloc((num_of_blocks * 8 ) * sizeof (*file_bytes));
+
+  read_file_to_array(input_file, file_bytes, file_size);
+  read_file_to_array(input_file, file_bytes_changed, file_size);
+
+  num_of_blocks--;
+  float H[num_of_blocks];
+
+  /* encrypt */
+  f_k128_CBC(subkeys, file_bytes, CBC, num_of_blocks);
+
+  int j, k;
+
+  /* alterar cada e bit e fazer as paradas */
+  for(i=0; i < 64 * num_of_blocks; i++){
+
+    uint8_t CBC_encrypt[8] = {1, 1, 1, 1, 1, 1, 1, 1};
+    uint8_t CBC_decrypt[8] = {1, 1, 1, 1, 1, 1, 1, 1};
+
+    /* toggle bit */
+    toggle(file_bytes_changed, i);
+
+    /* encriptar o vetor alterado */
+    f_k128_CBC(subkeys, file_bytes_changed, CBC_encrypt, num_of_blocks);
+
+    /* calcular distancias de hamming */
+    for(k=0; k < num_of_blocks; k++)
+      H[k] += hamming_distance(file_bytes, file_bytes_changed, k*8);
+
+    /* decriptar o vetor alterado */
+    f_k128_CBC_reverse(subkeys, file_bytes_changed, CBC_decrypt, num_of_blocks);
+
+    /* untoggle bit */
+    toggle(file_bytes_changed, i);
+  }
+
+  printf("SUM\n");
+  for (j=0;j<num_of_blocks;j++){
+    printf("SumH[%d] =  %f", j, H[j]);
+    printf("\n");
+  }
+  printf("\n");
+  printf("MEANS\n");
+  for (j=0;j<num_of_blocks;j++){
+    H[j] = H[j] / ((j+1) * 64);
+    printf("MeanH[%d] =  %f", j, H[j]);
+    printf("\n");
+  }
+
+  /* avoid leaks */
+  free(file_bytes);
+  free(file_bytes_changed);
+}
+
+/* courtesy of @msart */
+int hamming_distance(byte_t vetentra[], byte_t vetalter[], long j){
+	int i, k, ham = 0;
+	byte_t A[8], Aalter[8];
+	byte_t a, b;
+
+	A[0] = vetentra[j + 0];
+	A[1] = vetentra[j + 1];
+	A[2] = vetentra[j + 2];
+	A[3] = vetentra[j + 3];
+	A[4] = vetentra[j + 4];
+	A[5] = vetentra[j + 5];
+	A[6] = vetentra[j + 6];
+	A[7] = vetentra[j + 7];
+
+	Aalter[0] = vetalter[j + 0];
+	Aalter[1] = vetalter[j + 1];
+	Aalter[2] = vetalter[j + 2];
+	Aalter[3] = vetalter[j + 3];
+	Aalter[4] = vetalter[j + 4];
+	Aalter[5] = vetalter[j + 5];
+	Aalter[6] = vetalter[j + 6];
+	Aalter[7] = vetalter[j + 7];
+
+	for (i = 0; i < 8; ++i) {
+    ham += countHammDist(A[i], Aalter[i]);
+	}
+	return ham;
+}
+
+int countHammDist(uint8_t n, uint8_t m){
+  int i=0;
+  unsigned int count = 0 ;
+  for(i=0; i<8; i++){
+  if((n&1) != (m&1)) {
+      count++;
+      }
+  n >>= 1;
+  m >>= 1;
+  }
+  return count;
+}
+
+void toggle(byte_t file_bytes[], int index_of_bit){
+
+  /* consider bits from left to right */
+  int index_on_number = index_of_bit % 8;
+  int index_on_file_bytes = index_of_bit / 8;
+  byte_t number = file_bytes[index_on_file_bytes];
+
+  /* toggle */
+  number ^= 1 << (7 - index_on_number);
+
+  file_bytes[index_on_file_bytes] = number;
 }
 
 long get_file_size(string file_name){
