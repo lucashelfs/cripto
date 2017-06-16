@@ -1,0 +1,28 @@
+Nome:  Lucas Helfstein Rocha
+NUSP:  8802426
+
+
+Arquivos
+--------
+
+ep.c: código-fonte
+executavel: arquivo executável
+Makefile: arquivo para compilar
+inputs: pasta com arquivos utilizados para testar
+outputs: pasta com arquivos de output de testes
+test.sh: um script que roda o ep sob diversas situações
+
+Como usar
+--------
+
+- Digite "make ep"
+- Execute com "./executavel" + os parâmetros desejados, definidos no enunciado do ep
+
+
+Computador
+---------
+
+- Codei tudo em UBUNTU 16.04, num notebook com 8gb de RAM e processador i5 sétima geração.
+- Os resultados estão corretos e tudo parece estar eficiente, com ressalva para as
+medidas de complexidade que demoram para arquivos grandes, visto que a complexidade
+do algoritmo se baseia no tamanho do arquivo de entrada.

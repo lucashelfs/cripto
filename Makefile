@@ -3,7 +3,7 @@
 CC=gcc
 
 ep: ep.c
-	$(CC) -Wall -ansi -o epzao ep.c -lm
+	$(CC) -Wall -ansi -o executavel ep.c -lm
 
 clean:
-	rm -f epzao ep.o
+	rm -f executavel ep.o
