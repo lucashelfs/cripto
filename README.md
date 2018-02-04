@@ -2,8 +2,6 @@
 
 Aqui fica o código do ep de critografia.
 
-## Falta implementar
-
 ### Atenção com
 - Arrumar dívidas técnicas
 
